@@ -7,7 +7,6 @@ import { Log } from "../util/log"
 import { BunProc } from "../bun"
 import { BashTool } from "../tool/bash"
 import { EditTool } from "../tool/edit"
-import { WebFetchTool } from "../tool/webfetch"
 import { GlobTool } from "../tool/glob"
 import { GrepTool } from "../tool/grep"
 import { ListTool } from "../tool/ls"
@@ -15,9 +14,11 @@ import { LspDiagnosticTool } from "../tool/lsp-diagnostics"
 import { LspHoverTool } from "../tool/lsp-hover"
 import { PatchTool } from "../tool/patch"
 import { ReadTool } from "../tool/read"
-import type { Tool } from "../tool/tool"
 import { WriteTool } from "../tool/write"
-import { TodoReadTool, TodoWriteTool } from "../tool/todo"
+import { TodoWriteTool, TodoReadTool } from "../tool/todo"
+import { WebFetchTool } from "../tool/webfetch"
+import { PlanApprovedTool } from "../tool/planapproved"
+import type { Tool } from "../tool/tool"
 import { AuthAnthropic } from "../auth/anthropic"
 import { AuthCopilot } from "../auth/copilot"
 import { ModelsDev } from "./models"
@@ -422,11 +423,14 @@ export namespace Provider {
     TodoReadTool,
     TodoWriteTool,
     WebFetchTool,
+    PlanApprovedTool,
     // WebSearchTool is not imported, so excluding it for now
   ]
 
-
-  export async function tools(providerID: string, mode: "normal" | "planning" = "normal"): Promise<Tool.Info[]> {
+  export async function tools(
+    providerID: string,
+    mode: "normal" | "planning" = "normal",
+  ): Promise<Tool.Info[]> {
     /*
     const cfg = await Config.get()
     if (cfg.tool?.provider?.[providerID])
@@ -435,12 +439,12 @@ export namespace Provider {
       )
         */
     const baseTools = mode === "planning" ? PLANNING_MODE_TOOLS : TOOLS
-    
+
     if (mode === "planning") {
       // In planning mode, return the same tools for all providers (no transformations)
       return baseTools
     }
-    
+
     // Normal mode: apply provider-specific transformations
     if (providerID === "anthropic") {
       return baseTools.filter((t) => t.id !== "patch")
@@ -451,7 +455,7 @@ export namespace Provider {
         parameters: optionalToNullable(t.parameters),
       }))
     }
-    
+
     return baseTools
   }
 

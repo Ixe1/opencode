@@ -24,9 +24,9 @@ type PlanApprovalDialogCmp struct {
 
 // NewPlanApprovalDialogCmp creates a new PlanApprovalDialogCmp.
 func NewPlanApprovalDialogCmp(plan string) PlanApprovalDialogCmp {
-	// Create viewport with initial size
+	// Create viewport with initial size - will be resized on WindowSizeMsg
 	vp := viewport.New(
-		viewport.WithWidth(100),
+		viewport.WithWidth(80),
 		viewport.WithHeight(20),
 	)
 	
@@ -56,16 +56,16 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("esc"))):
-			return m, util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: false})
+			return m, util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: false, PlanContent: m.plan})
 		case key.Matches(msg, key.NewBinding(key.WithKeys("tab", "left", "right", "h", "l"))):
 			m.selected = (m.selected + 1) % 2
 			return m, nil
 		case key.Matches(msg, key.NewBinding(key.WithKeys("enter"))):
-			return m, util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: m.selected == 0})
+			return m, util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: m.selected == 0, PlanContent: m.plan})
 		case key.Matches(msg, key.NewBinding(key.WithKeys("y"))):
-			return m, util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: true})
+			return m, util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: true, PlanContent: m.plan})
 		case key.Matches(msg, key.NewBinding(key.WithKeys("n"))):
-			return m, util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: false})
+			return m, util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: false, PlanContent: m.plan})
 		default:
 			// Handle viewport navigation
 			m.viewport, cmd = m.viewport.Update(msg)
@@ -75,25 +75,36 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		
-		// Update viewport size
-		headerHeight := 4
-		footerHeight := 6
-		borderHeight := 2
-		maxHeight := m.height - headerHeight - footerHeight - borderHeight
+		// Calculate available space for the dialog
+		// Leave some margin for the border and padding
+		marginX := 4  // 2 chars on each side
+		marginY := 2  // 1 line on top and bottom
 		
-		viewportWidth := 100
-		if m.width-8 < viewportWidth {
-			viewportWidth = m.width - 8
+		// Calculate dialog dimensions (80% of screen with max width)
+		dialogWidth := int(float64(m.width) * 0.8)
+		maxWidth := 120
+		if dialogWidth > maxWidth {
+			dialogWidth = maxWidth
 		}
-		viewportHeight := 20
-		if maxHeight < viewportHeight {
-			viewportHeight = maxHeight
-		}
-		// Ensure minimum height
-		if viewportHeight < 5 {
-			viewportHeight = 5
+		if dialogWidth > m.width - marginX {
+			dialogWidth = m.width - marginX
 		}
 		
+		// Calculate viewport size within dialog
+		// Account for dialog chrome (title, buttons, borders, padding)
+		headerHeight := 4  // Title + divider
+		footerHeight := 6  // Question + buttons + padding
+		borderHeight := 2  // Top and bottom borders
+		paddingX := 6      // Padding inside border (2 + 2 for border + 2 for padding)
+		
+		viewportWidth := dialogWidth - paddingX
+		viewportHeight := m.height - headerHeight - footerHeight - borderHeight - marginY
+		
+		// Ensure minimum sizes
+		viewportWidth = max(viewportWidth, 40)
+		viewportHeight = max(viewportHeight, 10)
+		
+		// Update viewport
 		m.viewport = viewport.New(
 			viewport.WithWidth(viewportWidth),
 			viewport.WithHeight(viewportHeight),
@@ -108,20 +119,26 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m PlanApprovalDialogCmp) View() string {
 
 	t := theme.CurrentTheme()
-	baseStyle := styles.NewStyle().Foreground(t.Text())
+	baseStyle := styles.NewStyle().
+		Foreground(t.Text()).
+		Background(t.Background())
 
-	// Title
+	// Title with icon
 	viewportWidth := m.viewport.Width()
+	titleText := "📋 Implementation Plan"
 	title := baseStyle.
 		Foreground(t.Primary()).
 		Bold(true).
 		Width(viewportWidth).
 		Align(lipgloss.Center).
-		Padding(0, 1).
-		Render("Plan Approval")
+		Padding(1, 1).
+		Render(titleText)
 
-	// Viewport with plan content
-	planView := m.viewport.View()
+	// Viewport with plan content - add some padding for readability
+	planView := baseStyle.
+		Width(viewportWidth).
+		Padding(0, 2).
+		Render(m.viewport.View())
 	
 	// Scroll indicator
 	scrollInfo := ""
@@ -145,38 +162,39 @@ func (m PlanApprovalDialogCmp) View() string {
 		}
 	}
 
-	// Question
+	// Question with emphasis
 	question := baseStyle.
 		Foreground(t.Text()).
 		Width(viewportWidth).
 		Align(lipgloss.Center).
 		Padding(1, 1).
+		Bold(true).
 		Render("Do you approve this plan?")
 
-	// Buttons
-	yesStyle := baseStyle
-	noStyle := baseStyle
+	// Buttons with better styling
+	yesStyle := baseStyle.Padding(0, 4)
+	noStyle := baseStyle.Padding(0, 4)
 
 	if m.selected == 0 {
 		yesStyle = yesStyle.
-			Background(t.Primary()).
+			Background(t.Success()).
 			Foreground(t.Background()).
 			Bold(true)
 		noStyle = noStyle.
-			Background(t.Background()).
-			Foreground(t.Primary())
+			Background(t.BackgroundElement()).
+			Foreground(t.Text())
 	} else {
 		noStyle = noStyle.
-			Background(t.Primary()).
+			Background(t.Error()).
 			Foreground(t.Background()).
 			Bold(true)
 		yesStyle = yesStyle.
-			Background(t.Background()).
-			Foreground(t.Primary())
+			Background(t.BackgroundElement()).
+			Foreground(t.Text())
 	}
 
-	yes := yesStyle.Padding(0, 3).Render("Yes")
-	no := noStyle.Padding(0, 3).Render("No")
+	yes := yesStyle.Render("✓ Approve")
+	no := noStyle.Render("✗ Reject")
 
 	buttons := lipgloss.JoinHorizontal(lipgloss.Center, yes, baseStyle.Render("  "), no)
 	buttons = baseStyle.
@@ -184,6 +202,13 @@ func (m PlanApprovalDialogCmp) View() string {
 		Align(lipgloss.Center).
 		Padding(0, 0).
 		Render(buttons)
+
+	// Keyboard shortcuts hint
+	shortcuts := baseStyle.
+		Foreground(t.TextMuted()).
+		Width(viewportWidth).
+		Align(lipgloss.Center).
+		Render("Press Y to approve, N to reject, or use arrow keys and Enter")
 
 	// Divider
 	divider := strings.Repeat("─", viewportWidth)
@@ -204,16 +229,19 @@ func (m PlanApprovalDialogCmp) View() string {
 		dividerStyle.Render(divider),
 		question,
 		buttons,
+		shortcuts,
 		baseStyle.Width(viewportWidth).Render(""),
 	)
 
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
 
+	// Use a double border for emphasis
 	return baseStyle.
+		Background(t.Background()).
 		Padding(1, 2).
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.DoubleBorder()).
 		BorderBackground(t.Background()).
-		BorderForeground(t.TextMuted()).
+		BorderForeground(t.Primary()).
 		Width(viewportWidth + 6).
 		Render(content)
 }
@@ -228,37 +256,39 @@ func (m *PlanApprovalDialogCmp) SetSize(width, height int) {
 func (m PlanApprovalDialogCmp) Render(background string) string {
 	t := theme.CurrentTheme()
 	
-	// Create a semi-transparent overlay
-	overlay := styles.NewStyle().
-		Width(m.width).
-		Height(m.height).
-		Background(t.Background()).
-		Render("")
-	
 	// Get the dialog view
 	dialogView := m.View()
 	
-	// Center the dialog
-	dialogWidth := lipgloss.Width(dialogView)
-	dialogHeight := lipgloss.Height(dialogView)
-	x := (m.width - dialogWidth) / 2
-	y := (m.height - dialogHeight) / 2
+	// Center the dialog using lipgloss.Place
+	centeredDialog := lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialogView,
+	)
 	
-	// Place the dialog on the overlay
-	result := lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, overlay)
-	result = layout.PlaceOverlay(x, y, dialogView, result)
+	// Create overlay with the background dimmed
+	dimmedBg := styles.NewStyle().
+		Width(m.width).
+		Height(m.height).
+		Background(t.Background()).
+		Foreground(t.TextMuted()).
+		Render(background)
 	
-	return result
+	// Place the centered dialog on top of the dimmed background
+	return layout.PlaceOverlay(0, 0, centeredDialog, dimmedBg)
 }
 
 // Close returns a command to close the dialog.
 func (m PlanApprovalDialogCmp) Close() tea.Cmd {
-	return util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: false})
+	return util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: false, PlanContent: m.plan})
 }
 
 // ClosePlanApprovalDialogMsg is sent when the plan approval dialog is closed.
 type ClosePlanApprovalDialogMsg struct {
-	Approved bool
+	Approved    bool
+	PlanContent string
 }
 
 // ShowPlanApprovalDialogMsg is sent to show the plan approval dialog.

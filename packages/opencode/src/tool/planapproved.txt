@@ -1,0 +1,22 @@
+Use this tool when the user has approved a plan that was presented using the PlanDelivery tool.
+
+This tool will:
+1. Switch the session from planning mode to normal mode
+2. Update the plan status to "approved"
+3. Give you access to all implementation tools (Edit, Write, Bash, etc.)
+
+Only use this tool when you receive clear approval from the user, such as:
+- "Yes, proceed"
+- "Approved"
+- "Go ahead"
+- "Looks good"
+- "Let's do it"
+- Similar affirmative responses
+
+Do not use this tool if:
+- The user asks for changes or modifications
+- The user rejects the plan
+- The user's response is unclear or ambiguous
+- The user asks questions about the plan
+
+After using this tool, you should immediately begin implementing the approved plan using the todo list you created during planning.

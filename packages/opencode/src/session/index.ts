@@ -54,6 +54,13 @@ export namespace Session {
         updated: z.number(),
       }),
       mode: z.enum(["normal", "planning"]).default("normal"),
+      lastPlan: z
+        .object({
+          plan: z.any(),
+          status: z.enum(["pending", "approved", "rejected"]),
+          timestamp: z.number(),
+        })
+        .optional(),
     })
     .openapi({
       ref: "session.info",
@@ -207,6 +214,21 @@ export namespace Session {
         mode: mode,
       })
     }
+    return session
+  }
+
+  export async function updateLastPlan(
+    id: string,
+    plan: any,
+    status: "pending" | "approved" | "rejected",
+  ) {
+    const session = await update(id, (session) => {
+      session.lastPlan = {
+        plan: plan,
+        status: status,
+        timestamp: Date.now(),
+      }
+    })
     return session
   }
 
@@ -378,14 +400,23 @@ export namespace Session {
 
     // Get session to check mode
     const sessionInfo = await get(input.sessionID)
-    
-    const system = input.system ?? (
-      sessionInfo.mode === "planning" 
+
+    const system =
+      input.system ??
+      (sessionInfo.mode === "planning"
         ? SystemPrompt.planMode(input.providerID)
-        : SystemPrompt.provider(input.providerID)
-    )
+        : SystemPrompt.provider(input.providerID))
     system.push(...(await SystemPrompt.environment()))
     system.push(...(await SystemPrompt.custom()))
+
+    // Add last plan context if in planning mode and a plan exists
+    if (sessionInfo.mode === "planning" && sessionInfo.lastPlan) {
+      const planStatus = sessionInfo.lastPlan.status
+      const planContent = JSON.stringify(sessionInfo.lastPlan.plan, null, 2)
+      system.push(
+        `\n# Previous Plan Context\nThe user previously ${planStatus} the following plan:\n\`\`\`json\n${planContent}\n\`\`\`\n${planStatus === "rejected" ? "Please take this feedback into account when creating a new plan." : ""}`,
+      )
+    }
 
     const next: Message.Info = {
       id: Identifier.ascending("message"),
@@ -418,7 +449,10 @@ export namespace Session {
     await updateMessage(next)
     const tools: Record<string, AITool> = {}
 
-    for (const item of await Provider.tools(input.providerID, sessionInfo.mode)) {
+    for (const item of await Provider.tools(
+      input.providerID,
+      sessionInfo.mode,
+    )) {
       tools[item.id.replaceAll(".", "_")] = tool({
         id: item.id as any,
         description: item.description,

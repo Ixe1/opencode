@@ -487,6 +487,50 @@
         }
       }
     },
+    "/session_update_plan_status": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successfully updated plan status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.info"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postSession_update_plan_status",
+        "parameters": [],
+        "description": "Update the status of the last plan in a session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "rejected"
+                    ]
+                  }
+                },
+                "required": [
+                  "sessionID",
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/session_chat": {
       "post": {
         "responses": {
@@ -632,6 +676,155 @@
         "parameters": [],
         "description": "Get installation info"
       }
+    },
+    "/checkpoint_list": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "List of checkpoints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "sessionID": {
+                        "type": "string",
+                        "pattern": "^ses"
+                      },
+                      "messageID": {
+                        "type": "string",
+                        "pattern": "^msg"
+                      },
+                      "commitHash": {
+                        "type": "string"
+                      },
+                      "branch": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "files": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "projectPath": {
+                        "type": "string"
+                      },
+                      "shadowRepoPath": {
+                        "type": "string"
+                      },
+                      "conversationSnapshot": {},
+                      "toolCall": {},
+                      "time": {
+                        "type": "object",
+                        "properties": {
+                          "created": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "created"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "sessionID",
+                      "messageID",
+                      "commitHash",
+                      "branch",
+                      "message",
+                      "files",
+                      "projectPath",
+                      "shadowRepoPath",
+                      "time"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postCheckpoint_list",
+        "parameters": [],
+        "description": "List checkpoints for a session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionID": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/checkpoint_restore": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Checkpoint restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postCheckpoint_restore",
+        "parameters": [],
+        "description": "Restore a checkpoint",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "checkpointID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "checkpointID"
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -649,6 +842,12 @@
           },
           {
             "$ref": "#/components/schemas/Event.permission.updated"
+          },
+          {
+            "$ref": "#/components/schemas/Event.checkpoint.created"
+          },
+          {
+            "$ref": "#/components/schemas/Event.checkpoint.restored"
           },
           {
             "$ref": "#/components/schemas/Event.message.updated"
@@ -676,6 +875,8 @@
             "installation.updated": "#/components/schemas/Event.installation.updated",
             "lsp.client.diagnostics": "#/components/schemas/Event.lsp.client.diagnostics",
             "permission.updated": "#/components/schemas/Event.permission.updated",
+            "checkpoint.created": "#/components/schemas/Event.checkpoint.created",
+            "checkpoint.restored": "#/components/schemas/Event.checkpoint.restored",
             "message.updated": "#/components/schemas/Event.message.updated",
             "message.part.updated": "#/components/schemas/Event.message.part.updated",
             "session.updated": "#/components/schemas/Event.session.updated",
@@ -812,6 +1013,172 @@
           "title",
           "metadata",
           "time"
+        ]
+      },
+      "Event.checkpoint.created": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "checkpoint.created"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "checkpoint": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "sessionID": {
+                    "type": "string",
+                    "pattern": "^ses"
+                  },
+                  "messageID": {
+                    "type": "string",
+                    "pattern": "^msg"
+                  },
+                  "commitHash": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "projectPath": {
+                    "type": "string"
+                  },
+                  "shadowRepoPath": {
+                    "type": "string"
+                  },
+                  "conversationSnapshot": {},
+                  "toolCall": {},
+                  "time": {
+                    "type": "object",
+                    "properties": {
+                      "created": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "created"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "sessionID",
+                  "messageID",
+                  "commitHash",
+                  "branch",
+                  "message",
+                  "files",
+                  "projectPath",
+                  "shadowRepoPath",
+                  "time"
+                ]
+              }
+            },
+            "required": [
+              "checkpoint"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.checkpoint.restored": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "checkpoint.restored"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "checkpoint": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "sessionID": {
+                    "type": "string",
+                    "pattern": "^ses"
+                  },
+                  "messageID": {
+                    "type": "string",
+                    "pattern": "^msg"
+                  },
+                  "commitHash": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "projectPath": {
+                    "type": "string"
+                  },
+                  "shadowRepoPath": {
+                    "type": "string"
+                  },
+                  "conversationSnapshot": {},
+                  "toolCall": {},
+                  "time": {
+                    "type": "object",
+                    "properties": {
+                      "created": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "created"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "sessionID",
+                  "messageID",
+                  "commitHash",
+                  "branch",
+                  "message",
+                  "files",
+                  "projectPath",
+                  "shadowRepoPath",
+                  "time"
+                ]
+              }
+            },
+            "required": [
+              "checkpoint"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
         ]
       },
       "Event.message.updated": {
@@ -1446,6 +1813,27 @@
               "planning"
             ],
             "default": "normal"
+          },
+          "lastPlan": {
+            "type": "object",
+            "properties": {
+              "plan": {},
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "approved",
+                  "rejected"
+                ]
+              },
+              "timestamp": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "status",
+              "timestamp"
+            ]
           }
         },
         "required": [
@@ -1766,6 +2154,23 @@
             },
             "description": "MCP (Model Context Protocol) server configurations"
           },
+          "checkpointing": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enable automatic checkpointing before file modifications"
+              }
+            },
+            "required": [
+              "enabled"
+            ],
+            "default": {
+              "enabled": true
+            },
+            "description": "Checkpoint configuration for automatic state saving"
+          },
           "experimental": {
             "type": "object",
             "properties": {
@@ -1826,6 +2231,9 @@
             }
           }
         },
+        "required": [
+          "checkpointing"
+        ],
         "additionalProperties": false
       },
       "Config.Keybinds": {

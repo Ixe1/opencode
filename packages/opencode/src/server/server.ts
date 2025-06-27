@@ -476,6 +476,41 @@ export namespace Server {
         },
       )
       .post(
+        "/session_update_plan_status",
+        describeRoute({
+          description: "Update the status of the last plan in a session",
+          responses: {
+            200: {
+              description: "Successfully updated plan status",
+              content: {
+                "application/json": {
+                  schema: resolver(Session.Info),
+                },
+              },
+            },
+          },
+        }),
+        zValidator(
+          "json",
+          z.object({
+            sessionID: z.string(),
+            status: z.enum(["approved", "rejected"]),
+          }),
+        ),
+        async (c) => {
+          const body = c.req.valid("json")
+          const session = await Session.get(body.sessionID)
+          if (session && session.lastPlan) {
+            await Session.updateLastPlan(
+              body.sessionID,
+              session.lastPlan.plan,
+              body.status,
+            )
+          }
+          return c.json(session)
+        },
+      )
+      .post(
         "/session_chat",
         describeRoute({
           description: "Chat with a model",

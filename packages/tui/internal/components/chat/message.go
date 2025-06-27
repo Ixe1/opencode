@@ -503,6 +503,13 @@ func renderToolInvocation(
 				body = renderContentBlock(body, WithFullWidth(), WithMarginBottom(1))
 			}
 		}
+	case "plandelivery":
+		title = "PLAN"
+		if result != nil && finished {
+			body = *result
+			body = toMarkdown(body, innerWidth, t.BackgroundPanel())
+			body = renderContentBlock(body, WithFullWidth(), WithMarginBottom(1))
+		}
 
 	default:
 		toolName := renderToolName(toolCall.ToolName)

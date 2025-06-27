@@ -19,12 +19,26 @@ type SystemTheme struct {
 
 // NewSystemTheme creates a new instance of the dynamic system theme
 func NewSystemTheme(terminalBg color.Color, isDark bool) *SystemTheme {
-	theme := &SystemTheme{
+	// Validate the isDark flag against the actual background color
+	r, g, b, _ := terminalBg.RGBA()
+	bgR := float64(r >> 8)
+	bgG := float64(g >> 8)
+	bgB := float64(b >> 8)
+	luminance := 0.299*bgR + 0.587*bgG + 0.114*bgB
+	
+	// If the detected darkness doesn't match the luminance, correct it
+	actuallyDark := luminance < 128
+	if isDark != actuallyDark {
+		// Terminal background detection might be wrong
+		isDark = actuallyDark
+	}
+	
+	t := &SystemTheme{
 		terminalBg:       terminalBg,
 		terminalBgIsDark: isDark,
 	}
-	theme.initializeColors()
-	return theme
+	t.initializeColors()
+	return t
 }
 
 // initializeColors sets up all theme colors
@@ -77,7 +91,11 @@ func (t *SystemTheme) initializeColors() {
 		Dark:  lipgloss.NoColor{},
 		Light: lipgloss.NoColor{},
 	}
-	t.BackgroundPanelColor = grays[2]
+	// For system theme, use NoColor for panel backgrounds to avoid inversion issues
+	t.BackgroundPanelColor = compat.AdaptiveColor{
+		Dark:  lipgloss.NoColor{},
+		Light: lipgloss.NoColor{},
+	}
 	t.BackgroundElementColor = grays[3]
 
 	// Border colors

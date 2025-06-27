@@ -78,6 +78,7 @@ const (
 	SessionInterruptCommand     CommandName = "session_interrupt"
 	SessionCompactCommand       CommandName = "session_compact"
 	SessionModeToggleCommand    CommandName = "session_mode_toggle"
+	CheckpointListCommand       CommandName = "checkpoint_list"
 	ToolDetailsCommand          CommandName = "tool_details"
 	ModelListCommand            CommandName = "model_list"
 	ThemeListCommand            CommandName = "theme_list"
@@ -96,6 +97,8 @@ const (
 	MessagesNextCommand         CommandName = "messages_next"
 	MessagesFirstCommand        CommandName = "messages_first"
 	MessagesLastCommand         CommandName = "messages_last"
+	PlanAcceptCommand           CommandName = "plan_accept"
+	PlanRejectCommand           CommandName = "plan_reject"
 	AppExitCommand              CommandName = "app_exit"
 )
 
@@ -172,6 +175,12 @@ func LoadFromConfig(config *client.ConfigInfo) CommandRegistry {
 			Description: "toggle planning mode",
 			Keybindings: parseBindings("shift+tab"),
 			Trigger:     "mode",
+		},
+		{
+			Name:        CheckpointListCommand,
+			Description: "list checkpoints",
+			Keybindings: parseBindings("<leader>k"),
+			Trigger:     "checkpoints",
 		},
 		{
 			Name:        ToolDetailsCommand,

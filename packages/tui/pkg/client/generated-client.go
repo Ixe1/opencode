@@ -29,6 +29,13 @@ const (
 	User      MessageInfoRole = "user"
 )
 
+// Defines values for SessionInfoLastPlanStatus.
+const (
+	SessionInfoLastPlanStatusApproved SessionInfoLastPlanStatus = "approved"
+	SessionInfoLastPlanStatusPending  SessionInfoLastPlanStatus = "pending"
+	SessionInfoLastPlanStatusRejected SessionInfoLastPlanStatus = "rejected"
+)
+
 // Defines values for SessionInfoMode.
 const (
 	SessionInfoModeNormal   SessionInfoMode = "normal"
@@ -39,6 +46,12 @@ const (
 const (
 	Normal   PostSessionSetModeJSONBodyMode = "normal"
 	Planning PostSessionSetModeJSONBodyMode = "planning"
+)
+
+// Defines values for PostSessionUpdatePlanStatusJSONBodyStatus.
+const (
+	PostSessionUpdatePlanStatusJSONBodyStatusApproved PostSessionUpdatePlanStatusJSONBodyStatus = "approved"
+	PostSessionUpdatePlanStatusJSONBodyStatusRejected PostSessionUpdatePlanStatusJSONBodyStatus = "rejected"
 )
 
 // AppInfo defines model for App.Info.
@@ -69,6 +82,12 @@ type ConfigInfo struct {
 
 	// Autoupdate Automatically update to the latest version
 	Autoupdate *bool `json:"autoupdate,omitempty"`
+
+	// Checkpointing Checkpoint configuration for automatic state saving
+	Checkpointing struct {
+		// Enabled Enable automatic checkpointing before file modifications
+		Enabled bool `json:"enabled"`
+	} `json:"checkpointing"`
 
 	// DisabledProviders Disable providers that are loaded automatically
 	DisabledProviders *[]string `json:"disabled_providers,omitempty"`
@@ -243,6 +262,52 @@ type Error struct {
 // Event defines model for Event.
 type Event struct {
 	union json.RawMessage
+}
+
+// EventCheckpointCreated defines model for Event.checkpoint.created.
+type EventCheckpointCreated struct {
+	Properties struct {
+		Checkpoint struct {
+			Branch               string       `json:"branch"`
+			CommitHash           string       `json:"commitHash"`
+			ConversationSnapshot *interface{} `json:"conversationSnapshot,omitempty"`
+			Files                []string     `json:"files"`
+			Id                   string       `json:"id"`
+			Message              string       `json:"message"`
+			MessageID            string       `json:"messageID"`
+			ProjectPath          string       `json:"projectPath"`
+			SessionID            string       `json:"sessionID"`
+			ShadowRepoPath       string       `json:"shadowRepoPath"`
+			Time                 struct {
+				Created float32 `json:"created"`
+			} `json:"time"`
+			ToolCall *interface{} `json:"toolCall,omitempty"`
+		} `json:"checkpoint"`
+	} `json:"properties"`
+	Type string `json:"type"`
+}
+
+// EventCheckpointRestored defines model for Event.checkpoint.restored.
+type EventCheckpointRestored struct {
+	Properties struct {
+		Checkpoint struct {
+			Branch               string       `json:"branch"`
+			CommitHash           string       `json:"commitHash"`
+			ConversationSnapshot *interface{} `json:"conversationSnapshot,omitempty"`
+			Files                []string     `json:"files"`
+			Id                   string       `json:"id"`
+			Message              string       `json:"message"`
+			MessageID            string       `json:"messageID"`
+			ProjectPath          string       `json:"projectPath"`
+			SessionID            string       `json:"sessionID"`
+			ShadowRepoPath       string       `json:"shadowRepoPath"`
+			Time                 struct {
+				Created float32 `json:"created"`
+			} `json:"time"`
+			ToolCall *interface{} `json:"toolCall,omitempty"`
+		} `json:"checkpoint"`
+	} `json:"properties"`
+	Type string `json:"type"`
 }
 
 // EventInstallationUpdated defines model for Event.installation.updated.
@@ -545,7 +610,12 @@ type PermissionInfo struct {
 
 // SessionInfo defines model for session.info.
 type SessionInfo struct {
-	Id       string          `json:"id"`
+	Id       string `json:"id"`
+	LastPlan *struct {
+		Plan      *interface{}              `json:"plan,omitempty"`
+		Status    SessionInfoLastPlanStatus `json:"status"`
+		Timestamp float32                   `json:"timestamp"`
+	} `json:"lastPlan,omitempty"`
 	Mode     SessionInfoMode `json:"mode"`
 	ParentID *string         `json:"parentID,omitempty"`
 	Share    *struct {
@@ -559,8 +629,21 @@ type SessionInfo struct {
 	Version string `json:"version"`
 }
 
+// SessionInfoLastPlanStatus defines model for SessionInfo.LastPlan.Status.
+type SessionInfoLastPlanStatus string
+
 // SessionInfoMode defines model for SessionInfo.Mode.
 type SessionInfoMode string
+
+// PostCheckpointListJSONBody defines parameters for PostCheckpointList.
+type PostCheckpointListJSONBody struct {
+	SessionID *string `json:"sessionID,omitempty"`
+}
+
+// PostCheckpointRestoreJSONBody defines parameters for PostCheckpointRestore.
+type PostCheckpointRestoreJSONBody struct {
+	CheckpointID string `json:"checkpointID"`
+}
 
 // PostFileSearchJSONBody defines parameters for PostFileSearch.
 type PostFileSearchJSONBody struct {
@@ -623,6 +706,21 @@ type PostSessionUnshareJSONBody struct {
 	SessionID string `json:"sessionID"`
 }
 
+// PostSessionUpdatePlanStatusJSONBody defines parameters for PostSessionUpdatePlanStatus.
+type PostSessionUpdatePlanStatusJSONBody struct {
+	SessionID string                                    `json:"sessionID"`
+	Status    PostSessionUpdatePlanStatusJSONBodyStatus `json:"status"`
+}
+
+// PostSessionUpdatePlanStatusJSONBodyStatus defines parameters for PostSessionUpdatePlanStatus.
+type PostSessionUpdatePlanStatusJSONBodyStatus string
+
+// PostCheckpointListJSONRequestBody defines body for PostCheckpointList for application/json ContentType.
+type PostCheckpointListJSONRequestBody PostCheckpointListJSONBody
+
+// PostCheckpointRestoreJSONRequestBody defines body for PostCheckpointRestore for application/json ContentType.
+type PostCheckpointRestoreJSONRequestBody PostCheckpointRestoreJSONBody
+
 // PostFileSearchJSONRequestBody defines body for PostFileSearch for application/json ContentType.
 type PostFileSearchJSONRequestBody PostFileSearchJSONBody
 
@@ -652,6 +750,9 @@ type PostSessionSummarizeJSONRequestBody PostSessionSummarizeJSONBody
 
 // PostSessionUnshareJSONRequestBody defines body for PostSessionUnshare for application/json ContentType.
 type PostSessionUnshareJSONRequestBody PostSessionUnshareJSONBody
+
+// PostSessionUpdatePlanStatusJSONRequestBody defines body for PostSessionUpdatePlanStatus for application/json ContentType.
+type PostSessionUpdatePlanStatusJSONRequestBody PostSessionUpdatePlanStatusJSONBody
 
 // Getter for additional properties for MessageMetadata_Tool_AdditionalProperties. Returns the specified
 // element and whether it was found
@@ -933,6 +1034,62 @@ func (t *Event) MergeEventPermissionUpdated(v EventPermissionUpdated) error {
 	return err
 }
 
+// AsEventCheckpointCreated returns the union data inside the Event as a EventCheckpointCreated
+func (t Event) AsEventCheckpointCreated() (EventCheckpointCreated, error) {
+	var body EventCheckpointCreated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventCheckpointCreated overwrites any union data inside the Event as the provided EventCheckpointCreated
+func (t *Event) FromEventCheckpointCreated(v EventCheckpointCreated) error {
+	v.Type = "checkpoint.created"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventCheckpointCreated performs a merge with any union data inside the Event, using the provided EventCheckpointCreated
+func (t *Event) MergeEventCheckpointCreated(v EventCheckpointCreated) error {
+	v.Type = "checkpoint.created"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEventCheckpointRestored returns the union data inside the Event as a EventCheckpointRestored
+func (t Event) AsEventCheckpointRestored() (EventCheckpointRestored, error) {
+	var body EventCheckpointRestored
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventCheckpointRestored overwrites any union data inside the Event as the provided EventCheckpointRestored
+func (t *Event) FromEventCheckpointRestored(v EventCheckpointRestored) error {
+	v.Type = "checkpoint.restored"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventCheckpointRestored performs a merge with any union data inside the Event, using the provided EventCheckpointRestored
+func (t *Event) MergeEventCheckpointRestored(v EventCheckpointRestored) error {
+	v.Type = "checkpoint.restored"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 // AsEventMessageUpdated returns the union data inside the Event as a EventMessageUpdated
 func (t Event) AsEventMessageUpdated() (EventMessageUpdated, error) {
 	var body EventMessageUpdated
@@ -1115,6 +1272,10 @@ func (t Event) ValueByDiscriminator() (interface{}, error) {
 		return nil, err
 	}
 	switch discriminator {
+	case "checkpoint.created":
+		return t.AsEventCheckpointCreated()
+	case "checkpoint.restored":
+		return t.AsEventCheckpointRestored()
 	case "installation.updated":
 		return t.AsEventInstallationUpdated()
 	case "lsp.client.diagnostics":
@@ -1795,6 +1956,16 @@ type ClientInterface interface {
 	// PostAppInitialize request
 	PostAppInitialize(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostCheckpointListWithBody request with any body
+	PostCheckpointListWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostCheckpointList(ctx context.Context, body PostCheckpointListJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostCheckpointRestoreWithBody request with any body
+	PostCheckpointRestoreWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostCheckpointRestore(ctx context.Context, body PostCheckpointRestoreJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostConfigGet request
 	PostConfigGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1865,6 +2036,11 @@ type ClientInterface interface {
 	PostSessionUnshareWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostSessionUnshare(ctx context.Context, body PostSessionUnshareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostSessionUpdatePlanStatusWithBody request with any body
+	PostSessionUpdatePlanStatusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostSessionUpdatePlanStatus(ctx context.Context, body PostSessionUpdatePlanStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) PostAppInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1881,6 +2057,54 @@ func (c *Client) PostAppInfo(ctx context.Context, reqEditors ...RequestEditorFn)
 
 func (c *Client) PostAppInitialize(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostAppInitializeRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostCheckpointListWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostCheckpointListRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostCheckpointList(ctx context.Context, body PostCheckpointListJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostCheckpointListRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostCheckpointRestoreWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostCheckpointRestoreRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostCheckpointRestore(ctx context.Context, body PostCheckpointRestoreJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostCheckpointRestoreRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2215,6 +2439,30 @@ func (c *Client) PostSessionUnshare(ctx context.Context, body PostSessionUnshare
 	return c.Client.Do(req)
 }
 
+func (c *Client) PostSessionUpdatePlanStatusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSessionUpdatePlanStatusRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostSessionUpdatePlanStatus(ctx context.Context, body PostSessionUpdatePlanStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSessionUpdatePlanStatusRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // NewPostAppInfoRequest generates requests for PostAppInfo
 func NewPostAppInfoRequest(server string) (*http.Request, error) {
 	var err error
@@ -2265,6 +2513,86 @@ func NewPostAppInitializeRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewPostCheckpointListRequest calls the generic PostCheckpointList builder with application/json body
+func NewPostCheckpointListRequest(server string, body PostCheckpointListJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostCheckpointListRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostCheckpointListRequestWithBody generates requests for PostCheckpointList with any type of body
+func NewPostCheckpointListRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/checkpoint_list")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostCheckpointRestoreRequest calls the generic PostCheckpointRestore builder with application/json body
+func NewPostCheckpointRestoreRequest(server string, body PostCheckpointRestoreJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostCheckpointRestoreRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostCheckpointRestoreRequestWithBody generates requests for PostCheckpointRestore with any type of body
+func NewPostCheckpointRestoreRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/checkpoint_restore")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -2858,6 +3186,46 @@ func NewPostSessionUnshareRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
+// NewPostSessionUpdatePlanStatusRequest calls the generic PostSessionUpdatePlanStatus builder with application/json body
+func NewPostSessionUpdatePlanStatusRequest(server string, body PostSessionUpdatePlanStatusJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostSessionUpdatePlanStatusRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostSessionUpdatePlanStatusRequestWithBody generates requests for PostSessionUpdatePlanStatus with any type of body
+func NewPostSessionUpdatePlanStatusRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/session_update_plan_status")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -2906,6 +3274,16 @@ type ClientWithResponsesInterface interface {
 
 	// PostAppInitializeWithResponse request
 	PostAppInitializeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostAppInitializeResponse, error)
+
+	// PostCheckpointListWithBodyWithResponse request with any body
+	PostCheckpointListWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostCheckpointListResponse, error)
+
+	PostCheckpointListWithResponse(ctx context.Context, body PostCheckpointListJSONRequestBody, reqEditors ...RequestEditorFn) (*PostCheckpointListResponse, error)
+
+	// PostCheckpointRestoreWithBodyWithResponse request with any body
+	PostCheckpointRestoreWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostCheckpointRestoreResponse, error)
+
+	PostCheckpointRestoreWithResponse(ctx context.Context, body PostCheckpointRestoreJSONRequestBody, reqEditors ...RequestEditorFn) (*PostCheckpointRestoreResponse, error)
 
 	// PostConfigGetWithResponse request
 	PostConfigGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostConfigGetResponse, error)
@@ -2977,6 +3355,11 @@ type ClientWithResponsesInterface interface {
 	PostSessionUnshareWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionUnshareResponse, error)
 
 	PostSessionUnshareWithResponse(ctx context.Context, body PostSessionUnshareJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSessionUnshareResponse, error)
+
+	// PostSessionUpdatePlanStatusWithBodyWithResponse request with any body
+	PostSessionUpdatePlanStatusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionUpdatePlanStatusResponse, error)
+
+	PostSessionUpdatePlanStatusWithResponse(ctx context.Context, body PostSessionUpdatePlanStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSessionUpdatePlanStatusResponse, error)
 }
 
 type PostAppInfoResponse struct {
@@ -3017,6 +3400,68 @@ func (r PostAppInitializeResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PostAppInitializeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PostCheckpointListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]struct {
+		Branch               string       `json:"branch"`
+		CommitHash           string       `json:"commitHash"`
+		ConversationSnapshot *interface{} `json:"conversationSnapshot,omitempty"`
+		Files                []string     `json:"files"`
+		Id                   string       `json:"id"`
+		Message              string       `json:"message"`
+		MessageID            string       `json:"messageID"`
+		ProjectPath          string       `json:"projectPath"`
+		SessionID            string       `json:"sessionID"`
+		ShadowRepoPath       string       `json:"shadowRepoPath"`
+		Time                 struct {
+			Created float32 `json:"created"`
+		} `json:"time"`
+		ToolCall *interface{} `json:"toolCall,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PostCheckpointListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostCheckpointListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PostCheckpointRestoreResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success bool `json:"success"`
+	}
+	JSON400 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r PostCheckpointRestoreResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostCheckpointRestoreResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3406,6 +3851,28 @@ func (r PostSessionUnshareResponse) StatusCode() int {
 	return 0
 }
 
+type PostSessionUpdatePlanStatusResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SessionInfo
+}
+
+// Status returns HTTPResponse.Status
+func (r PostSessionUpdatePlanStatusResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostSessionUpdatePlanStatusResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // PostAppInfoWithResponse request returning *PostAppInfoResponse
 func (c *ClientWithResponses) PostAppInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostAppInfoResponse, error) {
 	rsp, err := c.PostAppInfo(ctx, reqEditors...)
@@ -3422,6 +3889,40 @@ func (c *ClientWithResponses) PostAppInitializeWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParsePostAppInitializeResponse(rsp)
+}
+
+// PostCheckpointListWithBodyWithResponse request with arbitrary body returning *PostCheckpointListResponse
+func (c *ClientWithResponses) PostCheckpointListWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostCheckpointListResponse, error) {
+	rsp, err := c.PostCheckpointListWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostCheckpointListResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostCheckpointListWithResponse(ctx context.Context, body PostCheckpointListJSONRequestBody, reqEditors ...RequestEditorFn) (*PostCheckpointListResponse, error) {
+	rsp, err := c.PostCheckpointList(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostCheckpointListResponse(rsp)
+}
+
+// PostCheckpointRestoreWithBodyWithResponse request with arbitrary body returning *PostCheckpointRestoreResponse
+func (c *ClientWithResponses) PostCheckpointRestoreWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostCheckpointRestoreResponse, error) {
+	rsp, err := c.PostCheckpointRestoreWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostCheckpointRestoreResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostCheckpointRestoreWithResponse(ctx context.Context, body PostCheckpointRestoreJSONRequestBody, reqEditors ...RequestEditorFn) (*PostCheckpointRestoreResponse, error) {
+	rsp, err := c.PostCheckpointRestore(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostCheckpointRestoreResponse(rsp)
 }
 
 // PostConfigGetWithResponse request returning *PostConfigGetResponse
@@ -3657,6 +4158,23 @@ func (c *ClientWithResponses) PostSessionUnshareWithResponse(ctx context.Context
 	return ParsePostSessionUnshareResponse(rsp)
 }
 
+// PostSessionUpdatePlanStatusWithBodyWithResponse request with arbitrary body returning *PostSessionUpdatePlanStatusResponse
+func (c *ClientWithResponses) PostSessionUpdatePlanStatusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionUpdatePlanStatusResponse, error) {
+	rsp, err := c.PostSessionUpdatePlanStatusWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSessionUpdatePlanStatusResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostSessionUpdatePlanStatusWithResponse(ctx context.Context, body PostSessionUpdatePlanStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSessionUpdatePlanStatusResponse, error) {
+	rsp, err := c.PostSessionUpdatePlanStatus(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSessionUpdatePlanStatusResponse(rsp)
+}
+
 // ParsePostAppInfoResponse parses an HTTP response from a PostAppInfoWithResponse call
 func ParsePostAppInfoResponse(rsp *http.Response) (*PostAppInfoResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -3703,6 +4221,82 @@ func ParsePostAppInitializeResponse(rsp *http.Response) (*PostAppInitializeRespo
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostCheckpointListResponse parses an HTTP response from a PostCheckpointListWithResponse call
+func ParsePostCheckpointListResponse(rsp *http.Response) (*PostCheckpointListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostCheckpointListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []struct {
+			Branch               string       `json:"branch"`
+			CommitHash           string       `json:"commitHash"`
+			ConversationSnapshot *interface{} `json:"conversationSnapshot,omitempty"`
+			Files                []string     `json:"files"`
+			Id                   string       `json:"id"`
+			Message              string       `json:"message"`
+			MessageID            string       `json:"messageID"`
+			ProjectPath          string       `json:"projectPath"`
+			SessionID            string       `json:"sessionID"`
+			ShadowRepoPath       string       `json:"shadowRepoPath"`
+			Time                 struct {
+				Created float32 `json:"created"`
+			} `json:"time"`
+			ToolCall *interface{} `json:"toolCall,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostCheckpointRestoreResponse parses an HTTP response from a PostCheckpointRestoreWithResponse call
+func ParsePostCheckpointRestoreResponse(rsp *http.Response) (*PostCheckpointRestoreResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostCheckpointRestoreResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success bool `json:"success"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
@@ -4149,6 +4743,32 @@ func ParsePostSessionUnshareResponse(rsp *http.Response) (*PostSessionUnshareRes
 	}
 
 	response := &PostSessionUnshareResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SessionInfo
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostSessionUpdatePlanStatusResponse parses an HTTP response from a PostSessionUpdatePlanStatusWithResponse call
+func ParsePostSessionUpdatePlanStatusResponse(rsp *http.Response) (*PostSessionUpdatePlanStatusResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostSessionUpdatePlanStatusResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

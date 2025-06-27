@@ -31,6 +31,24 @@ func GetMarkdownRenderer(width int, backgroundColor compat.AdaptiveColor) *glamo
 func generateMarkdownStyleConfig(backgroundColor compat.AdaptiveColor) ansi.StyleConfig {
 	t := theme.CurrentTheme()
 	background := AdaptiveColorToString(backgroundColor)
+	
+	// If background is nil or empty, don't set it to let terminal background show through
+	if background != nil && *background == "" {
+		background = nil
+	}
+	
+	// Additional check: if we're getting a very light color in dark mode or very dark in light mode,
+	// it's likely a detection error - don't set the background
+	if background != nil && *background != "" {
+		c, err := colorful.Hex(*background)
+		if err == nil {
+			_, _, l := c.Hsl()
+			// If luminance suggests inverted detection, don't set background
+			if (Terminal.BackgroundIsDark && l > 0.9) || (!Terminal.BackgroundIsDark && l < 0.1) {
+				background = nil
+			}
+		}
+	}
 
 	return ansi.StyleConfig{
 		Document: ansi.StyleBlock{
@@ -312,13 +330,15 @@ func generateMarkdownStyleConfig(backgroundColor compat.AdaptiveColor) ansi.Styl
 func AdaptiveColorToString(color compat.AdaptiveColor) *string {
 	if Terminal.BackgroundIsDark {
 		if _, ok := color.Dark.(lipgloss.NoColor); ok {
-			return nil
+			// Return empty string instead of nil to prevent glamour from defaulting to white
+			return stringPtr("")
 		}
 		c1, _ := colorful.MakeColor(color.Dark)
 		return stringPtr(c1.Hex())
 	}
 	if _, ok := color.Light.(lipgloss.NoColor); ok {
-		return nil
+		// Return empty string instead of nil to prevent glamour from defaulting to white
+		return stringPtr("")
 	}
 	c1, _ := colorful.MakeColor(color.Light)
 	return stringPtr(c1.Hex())

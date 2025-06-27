@@ -260,36 +260,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.modal = nil
 		return a, cmd
-	case dialog.ClosePlanApprovalDialogMsg:
-		a.modal = nil
-		if msg.Approved {
-			// Switch to normal mode and let the AI execute the plan
-			response, err := a.app.Client.PostSessionSetModeWithResponse(
-				context.Background(),
-				client.PostSessionSetModeJSONRequestBody{
-					SessionID: a.app.Session.Id,
-					Mode:      client.PostSessionSetModeJSONBodyMode("normal"),
-				},
-			)
-			if err != nil {
-				slog.Error("Failed to switch to normal mode", "error", err)
-				return a, toast.NewErrorToast("Failed to switch to normal mode")
-			}
-			if response.JSON200 != nil {
-				a.app.Session = response.JSON200
-				cmds = append(cmds, toast.NewSuccessToast("Plan approved! Switching to normal mode to execute."))
-				// Send a message to confirm execution
-				cmd := a.app.SendChatMessage(context.Background(), "Yes, please proceed with the implementation.", nil)
-				cmds = append(cmds, cmd)
-			}
-		} else {
-			// Stay in planning mode for revisions
-			cmds = append(cmds, toast.NewInfoToast("Plan rejected. Please revise the plan."))
-			// Send a message to request revisions
-			cmd := a.app.SendChatMessage(context.Background(), "No, please revise the plan.", nil)
-			cmds = append(cmds, cmd)
-		}
-		return a, tea.Batch(cmds...)
+	// Plan approval/rejection is now handled inline in the chat
 	case commands.ExecuteCommandMsg:
 		updated, cmd := a.executeCommand(commands.Command(msg))
 		return updated, cmd
@@ -355,45 +326,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.app.Messages = append(a.app.Messages, msg.Properties.Info)
 			}
 
-			// Check if in planning mode and message contains plan approval request
-			if string(a.app.Session.Mode) == "planning" && 
-			   msg.Properties.Info.Role == client.Assistant {
-				// Check if the message contains the plan approval prompt
-				for _, part := range msg.Properties.Info.Parts {
-					p, err := part.ValueByDiscriminator()
-					if err != nil {
-						continue
-					}
-					if textPart, ok := p.(client.MessagePartText); ok {
-						if strings.Contains(textPart.Text, "Would you like me to proceed with this implementation?") ||
-						   strings.Contains(textPart.Text, "I've completed my analysis and developed a comprehensive plan") {
-							// Show plan approval dialog with the full message text
-							var planText strings.Builder
-							for _, msgPart := range msg.Properties.Info.Parts {
-								partContent, err := msgPart.ValueByDiscriminator()
-								if err != nil {
-									continue
-								}
-								if tp, ok := partContent.(client.MessagePartText); ok {
-									planText.WriteString(tp.Text)
-									planText.WriteString("\n")
-								}
-							}
-							
-							// Debug: Log the plan content length
-							planContent := planText.String()
-							if len(planContent) == 0 {
-								// If no plan content found, use a fallback message
-								planContent = "No plan content available. Please check the message format."
-							}
-							
-							planDialog := dialog.NewPlanApprovalDialogCmp(planContent)
-							a.modal = &planDialog
-							break
-						}
-					}
-				}
-			}
+			// Plans are now shown inline in the chat, no modal needed
 		}
 	case client.EventSessionError:
 		unknownError, err := msg.Properties.Error.AsUnknownError()
@@ -624,6 +557,12 @@ func (a appModel) executeCommand(command commands.Command) (tea.Model, tea.Cmd) 
 		}
 		// TODO: block until compaction is complete
 		a.app.CompactSession(context.Background())
+	case commands.CheckpointListCommand:
+		if a.app.Session.Id == "" {
+			return a, toast.NewErrorToast("No active session")
+		}
+		checkpointDialog := dialog.NewCheckpointDialog(a.app)
+		a.modal = checkpointDialog
 	case commands.SessionModeToggleCommand:
 		// Create session if it doesn't exist
 		if a.app.Session.Id == "" {
