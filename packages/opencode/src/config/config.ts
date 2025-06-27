@@ -21,6 +21,12 @@ export namespace Config {
         result = mergeDeep(result, await load(resolved))
       }
     }
+
+    // Ensure checkpointing is enabled by default
+    if (!result.checkpointing) {
+      result.checkpointing = { enabled: true }
+    }
+
     log.info("loaded", result)
     return result
   })
@@ -167,6 +173,19 @@ export namespace Config {
         .record(z.string(), Mcp)
         .optional()
         .describe("MCP (Model Context Protocol) server configurations"),
+      checkpointing: z
+        .object({
+          enabled: z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe(
+              "Enable automatic checkpointing before file modifications",
+            ),
+        })
+        .optional()
+        .default({ enabled: true })
+        .describe("Checkpoint configuration for automatic state saving"),
       experimental: z
         .object({
           hook: z
@@ -203,6 +222,11 @@ export namespace Config {
 
   export const global = lazy(async () => {
     let result = await load(path.join(Global.Path.config, "config.json"))
+
+    // Apply defaults
+    if (!result.checkpointing) {
+      result.checkpointing = { enabled: true }
+    }
 
     await import(path.join(Global.Path.config, "config"), {
       with: {

@@ -7,6 +7,8 @@ import { Permission } from "../permission"
 import DESCRIPTION from "./write.txt"
 import { App } from "../app/app"
 import { Format } from "../format"
+import { Checkpoint } from "../checkpoint"
+import { Config } from "../config/config"
 
 export const WriteTool = Tool.define({
   id: "write",
@@ -41,6 +43,22 @@ export const WriteTool = Tool.define({
         exists,
       },
     })
+
+    // Create checkpoint before modifying the file (if enabled)
+    const config = await Config.get()
+    if (config.checkpointing?.enabled) {
+      await Checkpoint.create({
+        sessionID: ctx.sessionID,
+        messageID: ctx.messageID,
+        description: exists
+          ? `Overwriting ${path.basename(filepath)}`
+          : `Creating ${path.basename(filepath)}`,
+        toolCall: {
+          tool: "write",
+          params: params,
+        },
+      })
+    }
 
     await Bun.write(filepath, params.content)
     await Format.run(filepath)

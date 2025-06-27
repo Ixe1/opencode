@@ -24,9 +24,18 @@ type PlanApprovalDialogCmp struct {
 
 // NewPlanApprovalDialogCmp creates a new PlanApprovalDialogCmp.
 func NewPlanApprovalDialogCmp(plan string) PlanApprovalDialogCmp {
+	// Create viewport with initial size
+	vp := viewport.New(
+		viewport.WithWidth(100),
+		viewport.WithHeight(20),
+	)
+	
+	// Set the content immediately
+	vp.SetContent(plan)
+	
 	return PlanApprovalDialogCmp{
 		selected: 0,
-		viewport: viewport.Model{},
+		viewport: vp,
 		plan:     plan,
 	}
 }
@@ -79,6 +88,10 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		viewportHeight := 20
 		if maxHeight < viewportHeight {
 			viewportHeight = maxHeight
+		}
+		// Ensure minimum height
+		if viewportHeight < 5 {
+			viewportHeight = 5
 		}
 		
 		m.viewport = viewport.New(

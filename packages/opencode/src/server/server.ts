@@ -16,6 +16,7 @@ import { ModelsDev } from "../provider/models"
 import { Ripgrep } from "../external/ripgrep"
 import { Installation } from "../installation"
 import { Config } from "../config/config"
+import { Checkpoint } from "../checkpoint"
 
 const ERRORS = {
   400: {
@@ -586,6 +587,65 @@ export namespace Server {
         }),
         async (c) => {
           return c.json(Installation.info())
+        },
+      )
+      .post(
+        "/checkpoint_list",
+        describeRoute({
+          description: "List checkpoints for a session",
+          responses: {
+            200: {
+              description: "List of checkpoints",
+              content: {
+                "application/json": {
+                  schema: resolver(Checkpoint.Info.array()),
+                },
+              },
+            },
+          },
+        }),
+        zValidator(
+          "json",
+          z.object({
+            sessionID: z.string().optional(),
+          }),
+        ),
+        async (c) => {
+          const body = c.req.valid("json")
+          const checkpoints = Checkpoint.list(body.sessionID)
+          return c.json(checkpoints)
+        },
+      )
+      .post(
+        "/checkpoint_restore",
+        describeRoute({
+          description: "Restore a checkpoint",
+          responses: {
+            200: {
+              description: "Checkpoint restored",
+              content: {
+                "application/json": {
+                  schema: resolver(
+                    z.object({
+                      success: z.boolean(),
+                    }),
+                  ),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator(
+          "json",
+          z.object({
+            checkpointID: z.string(),
+          }),
+        ),
+        async (c) => {
+          const body = c.req.valid("json")
+          const success = await Checkpoint.restore(body.checkpointID)
+          return c.json({ success })
         },
       )
 

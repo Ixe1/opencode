@@ -70,7 +70,6 @@ func main() {
 		tui.NewModel(app_),
 		tea.WithAltScreen(),
 		tea.WithKeyboardEnhancements(),
-		tea.WithMouseCellMotion(),
 	)
 
 	eventClient, err := client.NewClient(url)

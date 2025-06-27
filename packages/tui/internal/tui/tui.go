@@ -91,6 +91,9 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case tea.MouseClickMsg, tea.MouseReleaseMsg, tea.MouseMotionMsg:
+		// Ignore mouse click/motion events to prevent escape sequences appearing in input
+		return a, nil
 	case tea.KeyPressMsg:
 		keyString := msg.String()
 
@@ -376,9 +379,17 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 									planText.WriteString("\n")
 								}
 							}
-									planDialog := dialog.NewPlanApprovalDialogCmp(planText.String())
-									a.modal = &planDialog
-									break
+							
+							// Debug: Log the plan content length
+							planContent := planText.String()
+							if len(planContent) == 0 {
+								// If no plan content found, use a fallback message
+								planContent = "No plan content available. Please check the message format."
+							}
+							
+							planDialog := dialog.NewPlanApprovalDialogCmp(planContent)
+							a.modal = &planDialog
+							break
 						}
 					}
 				}

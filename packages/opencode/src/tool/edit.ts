@@ -12,6 +12,8 @@ import { Permission } from "../permission"
 import DESCRIPTION from "./edit.txt"
 import { App } from "../app/app"
 import { Format } from "../format"
+import { Checkpoint } from "../checkpoint"
+import { Config } from "../config/config"
 
 export const EditTool = Tool.define({
   id: "edit",
@@ -53,6 +55,20 @@ export const EditTool = Tool.define({
         newString: params.newString,
       },
     })
+
+    // Create checkpoint before modifying the file (if enabled)
+    const config = await Config.get()
+    if (config.checkpointing?.enabled) {
+      await Checkpoint.create({
+        sessionID: ctx.sessionID,
+        messageID: ctx.messageID,
+        description: `Editing ${path.basename(filepath)}`,
+        toolCall: {
+          tool: "edit",
+          params: params,
+        },
+      })
+    }
 
     let contentOld = ""
     let contentNew = ""
