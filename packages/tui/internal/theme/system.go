@@ -25,14 +25,14 @@ func NewSystemTheme(terminalBg color.Color, isDark bool) *SystemTheme {
 	bgG := float64(g >> 8)
 	bgB := float64(b >> 8)
 	luminance := 0.299*bgR + 0.587*bgG + 0.114*bgB
-	
+
 	// If the detected darkness doesn't match the luminance, correct it
 	actuallyDark := luminance < 128
 	if isDark != actuallyDark {
 		// Terminal background detection might be wrong
 		isDark = actuallyDark
 	}
-	
+
 	t := &SystemTheme{
 		terminalBg:       terminalBg,
 		terminalBgIsDark: isDark,
@@ -86,16 +86,14 @@ func (t *SystemTheme) initializeColors() {
 	// Derive muted text color from terminal foreground
 	t.TextMutedColor = t.generateMutedTextColor()
 
-	// Background colors
+	// Background colors - use the actual terminal background color
+	bgHex := t.colorToHex(t.terminalBg)
 	t.BackgroundColor = compat.AdaptiveColor{
-		Dark:  lipgloss.NoColor{},
-		Light: lipgloss.NoColor{},
+		Dark:  lipgloss.Color(bgHex),
+		Light: lipgloss.Color(bgHex),
 	}
-	// For system theme, use NoColor for panel backgrounds to avoid inversion issues
-	t.BackgroundPanelColor = compat.AdaptiveColor{
-		Dark:  lipgloss.NoColor{},
-		Light: lipgloss.NoColor{},
-	}
+	// Use a slightly different shade for panel backgrounds
+	t.BackgroundPanelColor = grays[2]
 	t.BackgroundElementColor = grays[3]
 
 	// Border colors
@@ -131,14 +129,8 @@ func (t *SystemTheme) initializeColors() {
 	t.DiffRemovedLineNumberBgColor = grays[3]
 
 	// Markdown colors using ANSI
-	t.MarkdownTextColor = compat.AdaptiveColor{
-		Dark:  lipgloss.NoColor{},
-		Light: lipgloss.NoColor{},
-	}
-	t.MarkdownHeadingColor = compat.AdaptiveColor{
-		Dark:  lipgloss.NoColor{},
-		Light: lipgloss.NoColor{},
-	}
+	t.MarkdownTextColor = t.TextColor
+	t.MarkdownHeadingColor = t.TextColor
 	t.MarkdownLinkColor = compat.AdaptiveColor{
 		Dark:  lipgloss.Color("4"), // blue
 		Light: lipgloss.Color("4"),
@@ -159,10 +151,7 @@ func (t *SystemTheme) initializeColors() {
 		Dark:  lipgloss.Color("3"), // yellow
 		Light: lipgloss.Color("3"),
 	}
-	t.MarkdownStrongColor = compat.AdaptiveColor{
-		Dark:  lipgloss.NoColor{},
-		Light: lipgloss.NoColor{},
-	}
+	t.MarkdownStrongColor = t.TextColor
 	t.MarkdownHorizontalRuleColor = t.BorderColor
 	t.MarkdownListItemColor = compat.AdaptiveColor{
 		Dark:  lipgloss.Color("4"), // blue
@@ -276,6 +265,12 @@ func (t *SystemTheme) generateGrayScale() map[int]compat.AdaptiveColor {
 }
 
 // generateMutedTextColor creates a muted gray color based on the terminal background
+// colorToHex converts a color.Color to a hex string
+func (t *SystemTheme) colorToHex(c color.Color) string {
+	r, g, b, _ := c.RGBA()
+	return fmt.Sprintf("#%02x%02x%02x", r>>8, g>>8, b>>8)
+}
+
 func (t *SystemTheme) generateMutedTextColor() compat.AdaptiveColor {
 	bgR, bgG, bgB, _ := t.terminalBg.RGBA()
 
