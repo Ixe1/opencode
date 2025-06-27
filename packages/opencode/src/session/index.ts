@@ -53,11 +53,20 @@ export namespace Session {
         created: z.number(),
         updated: z.number(),
       }),
-      mode: z.enum(["normal", "planning"]).default("normal"),
+      mode: z.enum(["normal", "planning", "review"]).default("normal"),
       lastPlan: z
         .object({
           plan: z.any(),
           status: z.enum(["pending", "approved", "rejected"]),
+          timestamp: z.number(),
+        })
+        .optional(),
+      reviewState: z
+        .object({
+          issues: z.array(z.any()),
+          currentIndex: z.number(),
+          fixed: z.array(z.string()),
+          skipped: z.array(z.string()),
           timestamp: z.number(),
         })
         .optional(),
@@ -102,7 +111,7 @@ export namespace Session {
       "session.mode.changed",
       z.object({
         sessionID: z.string(),
-        mode: z.enum(["normal", "planning"]),
+        mode: z.enum(["normal", "planning", "review"]),
       }),
     ),
   }
@@ -210,7 +219,10 @@ export namespace Session {
     return session
   }
 
-  export async function setMode(id: string, mode: "normal" | "planning") {
+  export async function setMode(
+    id: string,
+    mode: "normal" | "planning" | "review",
+  ) {
     const session = await update(id, (session) => {
       session.mode = mode
     })
@@ -234,6 +246,25 @@ export namespace Session {
         status: status,
         timestamp: Date.now(),
       }
+    })
+    return session
+  }
+
+  export async function updateReviewState(
+    id: string,
+    reviewState: Partial<Info["reviewState"]>,
+  ) {
+    const session = await update(id, (session) => {
+      if (!session.reviewState) {
+        session.reviewState = {
+          issues: [],
+          currentIndex: 0,
+          fixed: [],
+          skipped: [],
+          timestamp: Date.now(),
+        }
+      }
+      Object.assign(session.reviewState, reviewState)
     })
     return session
   }
@@ -411,7 +442,9 @@ export namespace Session {
       input.system ??
       (sessionInfo.mode === "planning"
         ? SystemPrompt.planMode(input.providerID)
-        : SystemPrompt.provider(input.providerID))
+        : sessionInfo.mode === "review"
+          ? SystemPrompt.reviewMode(input.providerID)
+          : SystemPrompt.provider(input.providerID))
     system.push(...(await SystemPrompt.environment()))
     system.push(...(await SystemPrompt.custom()))
 

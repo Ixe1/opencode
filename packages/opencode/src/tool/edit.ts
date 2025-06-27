@@ -15,6 +15,7 @@ import { Config } from "../config/config"
 import { File } from "../file"
 import { Bus } from "../bus"
 import { FileTime } from "../file/time"
+import { Session } from "../session"
 
 export const EditTool = Tool.define({
   id: "edit",
@@ -33,8 +34,20 @@ export const EditTool = Tool.define({
       .describe("Replace all occurrences of old_string (default false)"),
   }),
   async execute(params, ctx) {
+    // Check if we're in planning mode
+    const session = await Session.get(ctx.sessionID)
+    if (session.mode === "planning") {
+      throw new Error(
+        "Cannot edit files in planning mode. Please present your plan first and wait for approval before making any file changes.",
+      )
+    }
+
     if (!params.filePath) {
       throw new Error("filePath is required")
+    }
+
+    if (params.oldString === params.newString) {
+      throw new Error("old_string and new_string must be different")
     }
 
     if (params.oldString === params.newString) {

@@ -123,9 +123,13 @@ func (m statusComponent) View() string {
 		// Add mode indicator
 		mode := "NORMAL"
 		modeColor := t.Text()
-		if string(m.app.Session.Mode) == "planning" {
+		switch string(m.app.Session.Mode) {
+		case "planning":
 			mode = "PLANNING"
 			modeColor = t.Primary()
+		case "review":
+			mode = "REVIEW"
+			modeColor = t.Warning()
 		}
 		modeIndicator = styles.NewStyle().
 			Foreground(modeColor).

@@ -60,12 +60,12 @@ type appModel struct {
 
 func (a appModel) Init() tea.Cmd {
 	var cmds []tea.Cmd
-	
+
 	// Ensure theme is initialized before any rendering
 	if theme.CurrentTheme() == nil && a.app.State.Theme != "" {
 		theme.SetTheme(a.app.State.Theme)
 	}
-	
+
 	// https://github.com/charmbracelet/bubbletea/issues/1440
 	// https://github.com/sst/opencode/issues/127
 	if !util.IsWsl() {
@@ -415,7 +415,7 @@ func (a appModel) View() string {
 		// Return empty string if theme is not ready
 		return ""
 	}
-	
+
 	layoutView := a.layout.View()
 	editorWidth, _ := a.editorContainer.GetSize()
 	editorX, editorY := a.editorContainer.GetPosition()
@@ -573,13 +573,21 @@ func (a appModel) executeCommand(command commands.Command) (tea.Model, tea.Cmd) 
 			a.app.Session = session
 			cmds = append(cmds, util.CmdHandler(app.SessionSelectedMsg(session)))
 		}
-		
+
 		currentMode := string(a.app.Session.Mode)
 		if currentMode == "" {
 			currentMode = "normal"
 		}
-		newMode := "planning"
-		if currentMode == "planning" {
+		// Cycle through modes: normal -> planning -> review -> normal
+		var newMode string
+		switch currentMode {
+		case "normal":
+			newMode = "planning"
+		case "planning":
+			newMode = "review"
+		case "review":
+			newMode = "normal"
+		default:
 			newMode = "normal"
 		}
 		response, err := a.app.Client.PostSessionSetModeWithResponse(
@@ -595,9 +603,16 @@ func (a appModel) executeCommand(command commands.Command) (tea.Model, tea.Cmd) 
 		}
 		if response.JSON200 != nil {
 			a.app.Session = response.JSON200
-			modeText := "Planning mode activated"
-			if newMode == "normal" {
+			var modeText string
+			switch newMode {
+			case "normal":
 				modeText = "Normal mode activated"
+			case "planning":
+				modeText = "Planning mode activated"
+			case "review":
+				modeText = "Review mode activated"
+			default:
+				modeText = "Mode changed to " + newMode
 			}
 			cmds = append(cmds, toast.NewInfoToast(modeText))
 		}

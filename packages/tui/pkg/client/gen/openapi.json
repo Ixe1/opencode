@@ -832,12 +832,6 @@
       "Event": {
         "oneOf": [
           {
-            "$ref": "#/components/schemas/Event.storage.write"
-          },
-          {
-            "$ref": "#/components/schemas/Event.installation.updated"
-          },
-          {
             "$ref": "#/components/schemas/Event.lsp.client.diagnostics"
           },
           {
@@ -848,6 +842,15 @@
           },
           {
             "$ref": "#/components/schemas/Event.checkpoint.restored"
+          },
+          {
+            "$ref": "#/components/schemas/Event.file.edited"
+          },
+          {
+            "$ref": "#/components/schemas/Event.storage.write"
+          },
+          {
+            "$ref": "#/components/schemas/Event.installation.updated"
           },
           {
             "$ref": "#/components/schemas/Event.message.updated"
@@ -862,6 +865,9 @@
             "$ref": "#/components/schemas/Event.session.deleted"
           },
           {
+            "$ref": "#/components/schemas/Event.session.idle"
+          },
+          {
             "$ref": "#/components/schemas/Event.session.error"
           },
           {
@@ -871,69 +877,22 @@
         "discriminator": {
           "propertyName": "type",
           "mapping": {
-            "storage.write": "#/components/schemas/Event.storage.write",
-            "installation.updated": "#/components/schemas/Event.installation.updated",
             "lsp.client.diagnostics": "#/components/schemas/Event.lsp.client.diagnostics",
             "permission.updated": "#/components/schemas/Event.permission.updated",
             "checkpoint.created": "#/components/schemas/Event.checkpoint.created",
             "checkpoint.restored": "#/components/schemas/Event.checkpoint.restored",
+            "file.edited": "#/components/schemas/Event.file.edited",
+            "storage.write": "#/components/schemas/Event.storage.write",
+            "installation.updated": "#/components/schemas/Event.installation.updated",
             "message.updated": "#/components/schemas/Event.message.updated",
             "message.part.updated": "#/components/schemas/Event.message.part.updated",
             "session.updated": "#/components/schemas/Event.session.updated",
             "session.deleted": "#/components/schemas/Event.session.deleted",
+            "session.idle": "#/components/schemas/Event.session.idle",
             "session.error": "#/components/schemas/Event.session.error",
             "session.mode.changed": "#/components/schemas/Event.session.mode.changed"
           }
         }
-      },
-      "Event.storage.write": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "storage.write"
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "key": {
-                "type": "string"
-              },
-              "content": {}
-            },
-            "required": [
-              "key"
-            ]
-          }
-        },
-        "required": [
-          "type",
-          "properties"
-        ]
-      },
-      "Event.installation.updated": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "installation.updated"
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "version": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "version"
-            ]
-          }
-        },
-        "required": [
-          "type",
-          "properties"
-        ]
       },
       "Event.lsp.client.diagnostics": {
         "type": "object",
@@ -1173,6 +1132,79 @@
             },
             "required": [
               "checkpoint"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.file.edited": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "file.edited"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "file"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.storage.write": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "storage.write"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "content": {}
+            },
+            "required": [
+              "key"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.installation.updated": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "installation.updated"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version"
             ]
           }
         },
@@ -1810,7 +1842,8 @@
             "type": "string",
             "enum": [
               "normal",
-              "planning"
+              "planning",
+              "review"
             ],
             "default": "normal"
           },
@@ -1832,6 +1865,40 @@
             },
             "required": [
               "status",
+              "timestamp"
+            ]
+          },
+          "reviewState": {
+            "type": "object",
+            "properties": {
+              "issues": {
+                "type": "array",
+                "items": {}
+              },
+              "currentIndex": {
+                "type": "number"
+              },
+              "fixed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "skipped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "timestamp": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "issues",
+              "currentIndex",
+              "fixed",
+              "skipped",
               "timestamp"
             ]
           }
@@ -1860,6 +1927,30 @@
             },
             "required": [
               "info"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.session.idle": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "session.idle"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sessionID"
             ]
           }
         },
@@ -1924,7 +2015,8 @@
                 "type": "string",
                 "enum": [
                   "normal",
-                  "planning"
+                  "planning",
+                  "review"
                 ]
               }
             },
@@ -1942,9 +2034,6 @@
       "App.Info": {
         "type": "object",
         "properties": {
-          "project": {
-            "type": "string"
-          },
           "user": {
             "type": "string"
           },
@@ -1991,7 +2080,6 @@
           }
         },
         "required": [
-          "project",
           "user",
           "hostname",
           "git",

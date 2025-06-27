@@ -466,7 +466,7 @@ export namespace Server {
           "json",
           z.object({
             sessionID: z.string(),
-            mode: z.enum(["normal", "planning"]),
+            mode: z.enum(["normal", "planning", "review"]),
           }),
         ),
         async (c) => {

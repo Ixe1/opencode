@@ -172,7 +172,7 @@ func LoadFromConfig(config *client.ConfigInfo) CommandRegistry {
 		},
 		{
 			Name:        SessionModeToggleCommand,
-			Description: "toggle planning mode",
+			Description: "cycle mode (normal → planning → review)",
 			Keybindings: parseBindings("shift+tab"),
 			Trigger:     "mode",
 		},

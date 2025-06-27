@@ -10,6 +10,7 @@ import { Config } from "../config/config"
 import { Bus } from "../bus"
 import { File } from "../file"
 import { FileTime } from "../file/time"
+import { Session } from "../session"
 
 export const WriteTool = Tool.define({
   id: "write",
@@ -23,6 +24,14 @@ export const WriteTool = Tool.define({
     content: z.string().describe("The content to write to the file"),
   }),
   async execute(params, ctx) {
+    // Check if we're in planning mode
+    const session = await Session.get(ctx.sessionID)
+    if (session.mode === "planning") {
+      throw new Error(
+        "Cannot write files in planning mode. Please present your plan first and wait for approval before making any file changes.",
+      )
+    }
+
     const app = App.info()
     const filepath = path.isAbsolute(params.filePath)
       ? params.filePath

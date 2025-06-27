@@ -127,8 +127,9 @@ After presenting your plan:
   - Switch from planning mode to normal mode
   - Confirm the plan has been approved
   - Prepare for implementation
-- After using PlanApproved, you will have access to all tools
-- Execute the plan step by step using the todo list you created
+- After using PlanApproved, you can immediately start implementing the plan
+- Use TodoWrite to track your implementation progress
+- Execute the plan step by step using all available tools
 
 ### If the user rejects or requests changes:
 - The user may provide feedback or request modifications

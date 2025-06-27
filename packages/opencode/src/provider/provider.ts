@@ -18,6 +18,7 @@ import { WriteTool } from "../tool/write"
 import { TodoWriteTool, TodoReadTool } from "../tool/todo"
 import { WebFetchTool } from "../tool/webfetch"
 import { PlanApprovedTool } from "../tool/planapproved"
+import { ReviewTool } from "../tool/review"
 import type { Tool } from "../tool/tool"
 import { AuthAnthropic } from "../auth/anthropic"
 import { AuthCopilot } from "../auth/copilot"
@@ -411,25 +412,15 @@ export namespace Provider {
     TodoWriteTool,
     // TaskTool,
     TodoReadTool,
+    PlanApprovedTool,
   ]
 
-  const PLANNING_MODE_TOOLS = [
-    ReadTool,
-    GlobTool,
-    GrepTool,
-    ListTool,
-    LspDiagnosticTool,
-    LspHoverTool,
-    TodoReadTool,
-    TodoWriteTool,
-    WebFetchTool,
-    PlanApprovedTool,
-    // WebSearchTool is not imported, so excluding it for now
-  ]
+  // Removed separate mode tool lists - now using all tools in all modes
+  // The AI respects mode restrictions through system prompts
 
   export async function tools(
     providerID: string,
-    mode: "normal" | "planning" = "normal",
+    mode: "normal" | "planning" | "review" = "normal",
   ): Promise<Tool.Info[]> {
     /*
     const cfg = await Config.get()
@@ -438,13 +429,14 @@ export namespace Provider {
         (id) => TOOLS.find((t) => t.id === id)!,
       )
         */
-    const baseTools = mode === "planning" ? PLANNING_MODE_TOOLS : TOOLS
+    // Always provide all tools - the AI respects mode restrictions via prompts
+    // This fixes the issue where tools aren't available after plan approval
+    let baseTools: Tool.Info[] = TOOLS
 
-    if (mode === "planning") {
-      // In planning mode, return the same tools for all providers (no transformations)
-      return baseTools
+    if (mode === "review") {
+      // Add review-specific tool
+      baseTools = [...TOOLS, ReviewTool as Tool.Info]
     }
-
     // Normal mode: apply provider-specific transformations
     if (providerID === "anthropic") {
       return baseTools.filter((t) => t.id !== "patch")
@@ -452,7 +444,10 @@ export namespace Provider {
     if (providerID === "openai" || providerID === "azure") {
       return baseTools.map((t) => ({
         ...t,
-        parameters: optionalToNullable(t.parameters),
+        parameters:
+          t.parameters instanceof z.ZodType
+            ? optionalToNullable(t.parameters)
+            : t.parameters,
       }))
     }
 

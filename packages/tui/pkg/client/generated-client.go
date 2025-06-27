@@ -21,6 +21,7 @@ import (
 const (
 	EventSessionModeChangedPropertiesModeNormal   EventSessionModeChangedPropertiesMode = "normal"
 	EventSessionModeChangedPropertiesModePlanning EventSessionModeChangedPropertiesMode = "planning"
+	EventSessionModeChangedPropertiesModeReview   EventSessionModeChangedPropertiesMode = "review"
 )
 
 // Defines values for MessageInfoRole.
@@ -40,6 +41,7 @@ const (
 const (
 	SessionInfoModeNormal   SessionInfoMode = "normal"
 	SessionInfoModePlanning SessionInfoMode = "planning"
+	SessionInfoModeReview   SessionInfoMode = "review"
 )
 
 // Defines values for PostSessionSetModeJSONBodyMode.
@@ -65,8 +67,7 @@ type AppInfo struct {
 		Root   string `json:"root"`
 		State  string `json:"state"`
 	} `json:"path"`
-	Project string `json:"project"`
-	Time    struct {
+	Time struct {
 		Initialized *float32 `json:"initialized,omitempty"`
 	} `json:"time"`
 	User string `json:"user"`
@@ -310,6 +311,14 @@ type EventCheckpointRestored struct {
 	Type string `json:"type"`
 }
 
+// EventFileEdited defines model for Event.file.edited.
+type EventFileEdited struct {
+	Properties struct {
+		File string `json:"file"`
+	} `json:"properties"`
+	Type string `json:"type"`
+}
+
 // EventInstallationUpdated defines model for Event.installation.updated.
 type EventInstallationUpdated struct {
 	Properties struct {
@@ -370,6 +379,14 @@ type EventSessionError struct {
 // EventSessionError_Properties_Error defines model for EventSessionError.Properties.Error.
 type EventSessionError_Properties_Error struct {
 	union json.RawMessage
+}
+
+// EventSessionIdle defines model for Event.session.idle.
+type EventSessionIdle struct {
+	Properties struct {
+		SessionID string `json:"sessionID"`
+	} `json:"properties"`
+	Type string `json:"type"`
 }
 
 // EventSessionModeChanged defines model for Event.session.mode.changed.
@@ -616,9 +633,16 @@ type SessionInfo struct {
 		Status    SessionInfoLastPlanStatus `json:"status"`
 		Timestamp float32                   `json:"timestamp"`
 	} `json:"lastPlan,omitempty"`
-	Mode     SessionInfoMode `json:"mode"`
-	ParentID *string         `json:"parentID,omitempty"`
-	Share    *struct {
+	Mode        SessionInfoMode `json:"mode"`
+	ParentID    *string         `json:"parentID,omitempty"`
+	ReviewState *struct {
+		CurrentIndex float32       `json:"currentIndex"`
+		Fixed        []string      `json:"fixed"`
+		Issues       []interface{} `json:"issues"`
+		Skipped      []string      `json:"skipped"`
+		Timestamp    float32       `json:"timestamp"`
+	} `json:"reviewState,omitempty"`
+	Share *struct {
 		Url string `json:"url"`
 	} `json:"share,omitempty"`
 	Time struct {
@@ -922,62 +946,6 @@ func (t *ConfigInfo_Mcp_AdditionalProperties) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsEventStorageWrite returns the union data inside the Event as a EventStorageWrite
-func (t Event) AsEventStorageWrite() (EventStorageWrite, error) {
-	var body EventStorageWrite
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromEventStorageWrite overwrites any union data inside the Event as the provided EventStorageWrite
-func (t *Event) FromEventStorageWrite(v EventStorageWrite) error {
-	v.Type = "storage.write"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeEventStorageWrite performs a merge with any union data inside the Event, using the provided EventStorageWrite
-func (t *Event) MergeEventStorageWrite(v EventStorageWrite) error {
-	v.Type = "storage.write"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsEventInstallationUpdated returns the union data inside the Event as a EventInstallationUpdated
-func (t Event) AsEventInstallationUpdated() (EventInstallationUpdated, error) {
-	var body EventInstallationUpdated
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromEventInstallationUpdated overwrites any union data inside the Event as the provided EventInstallationUpdated
-func (t *Event) FromEventInstallationUpdated(v EventInstallationUpdated) error {
-	v.Type = "installation.updated"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeEventInstallationUpdated performs a merge with any union data inside the Event, using the provided EventInstallationUpdated
-func (t *Event) MergeEventInstallationUpdated(v EventInstallationUpdated) error {
-	v.Type = "installation.updated"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
 // AsEventLspClientDiagnostics returns the union data inside the Event as a EventLspClientDiagnostics
 func (t Event) AsEventLspClientDiagnostics() (EventLspClientDiagnostics, error) {
 	var body EventLspClientDiagnostics
@@ -1080,6 +1048,90 @@ func (t *Event) FromEventCheckpointRestored(v EventCheckpointRestored) error {
 // MergeEventCheckpointRestored performs a merge with any union data inside the Event, using the provided EventCheckpointRestored
 func (t *Event) MergeEventCheckpointRestored(v EventCheckpointRestored) error {
 	v.Type = "checkpoint.restored"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEventFileEdited returns the union data inside the Event as a EventFileEdited
+func (t Event) AsEventFileEdited() (EventFileEdited, error) {
+	var body EventFileEdited
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventFileEdited overwrites any union data inside the Event as the provided EventFileEdited
+func (t *Event) FromEventFileEdited(v EventFileEdited) error {
+	v.Type = "file.edited"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventFileEdited performs a merge with any union data inside the Event, using the provided EventFileEdited
+func (t *Event) MergeEventFileEdited(v EventFileEdited) error {
+	v.Type = "file.edited"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEventStorageWrite returns the union data inside the Event as a EventStorageWrite
+func (t Event) AsEventStorageWrite() (EventStorageWrite, error) {
+	var body EventStorageWrite
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventStorageWrite overwrites any union data inside the Event as the provided EventStorageWrite
+func (t *Event) FromEventStorageWrite(v EventStorageWrite) error {
+	v.Type = "storage.write"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventStorageWrite performs a merge with any union data inside the Event, using the provided EventStorageWrite
+func (t *Event) MergeEventStorageWrite(v EventStorageWrite) error {
+	v.Type = "storage.write"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEventInstallationUpdated returns the union data inside the Event as a EventInstallationUpdated
+func (t Event) AsEventInstallationUpdated() (EventInstallationUpdated, error) {
+	var body EventInstallationUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventInstallationUpdated overwrites any union data inside the Event as the provided EventInstallationUpdated
+func (t *Event) FromEventInstallationUpdated(v EventInstallationUpdated) error {
+	v.Type = "installation.updated"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventInstallationUpdated performs a merge with any union data inside the Event, using the provided EventInstallationUpdated
+func (t *Event) MergeEventInstallationUpdated(v EventInstallationUpdated) error {
+	v.Type = "installation.updated"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -1202,6 +1254,34 @@ func (t *Event) MergeEventSessionDeleted(v EventSessionDeleted) error {
 	return err
 }
 
+// AsEventSessionIdle returns the union data inside the Event as a EventSessionIdle
+func (t Event) AsEventSessionIdle() (EventSessionIdle, error) {
+	var body EventSessionIdle
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventSessionIdle overwrites any union data inside the Event as the provided EventSessionIdle
+func (t *Event) FromEventSessionIdle(v EventSessionIdle) error {
+	v.Type = "session.idle"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventSessionIdle performs a merge with any union data inside the Event, using the provided EventSessionIdle
+func (t *Event) MergeEventSessionIdle(v EventSessionIdle) error {
+	v.Type = "session.idle"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 // AsEventSessionError returns the union data inside the Event as a EventSessionError
 func (t Event) AsEventSessionError() (EventSessionError, error) {
 	var body EventSessionError
@@ -1276,6 +1356,8 @@ func (t Event) ValueByDiscriminator() (interface{}, error) {
 		return t.AsEventCheckpointCreated()
 	case "checkpoint.restored":
 		return t.AsEventCheckpointRestored()
+	case "file.edited":
+		return t.AsEventFileEdited()
 	case "installation.updated":
 		return t.AsEventInstallationUpdated()
 	case "lsp.client.diagnostics":
@@ -1290,6 +1372,8 @@ func (t Event) ValueByDiscriminator() (interface{}, error) {
 		return t.AsEventSessionDeleted()
 	case "session.error":
 		return t.AsEventSessionError()
+	case "session.idle":
+		return t.AsEventSessionIdle()
 	case "session.mode.changed":
 		return t.AsEventSessionModeChanged()
 	case "session.updated":

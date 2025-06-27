@@ -4,6 +4,7 @@ import * as fs from "fs/promises"
 import { Tool } from "./tool"
 import { FileTime } from "../file/time"
 import DESCRIPTION from "./patch.txt"
+import { Session } from "../session"
 
 const PatchParams = z.object({
   patchText: z
@@ -236,6 +237,14 @@ export const PatchTool = Tool.define({
   description: DESCRIPTION,
   parameters: PatchParams,
   execute: async (params, ctx) => {
+    // Check if we're in planning mode
+    const session = await Session.get(ctx.sessionID)
+    if (session.mode === "planning") {
+      throw new Error(
+        "Cannot apply patches in planning mode. Please present your plan first and wait for approval before making any file changes.",
+      )
+    }
+
     // Identify all files needed for the patch and verify they've been read
     const filesToRead = identifyFilesNeeded(params.patchText)
     for (const filePath of filesToRead) {

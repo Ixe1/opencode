@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { Tool } from "./tool"
 import DESCRIPTION from "./bash.txt"
+import { Session } from "../session"
 
 const MAX_OUTPUT_LENGTH = 30000
 const BANNED_COMMANDS = [
@@ -43,6 +44,52 @@ export const BashTool = Tool.define({
       ),
   }),
   async execute(params, ctx) {
+    // Check if we're in planning mode
+    const session = await Session.get(ctx.sessionID)
+    if (session.mode === "planning") {
+      // Allow read-only commands in planning mode
+      const readOnlyCommands = [
+        "ls",
+        "find",
+        "grep",
+        "cat",
+        "head",
+        "tail",
+        "wc",
+        "du",
+        "df",
+        "git status",
+        "git log",
+        "git diff",
+        "git branch",
+        "git remote",
+        "pwd",
+        "whoami",
+        "date",
+        "echo",
+        "which",
+        "type",
+        "file",
+        "npm list",
+        "yarn list",
+        "pip list",
+        "gem list",
+        "node --version",
+        "python --version",
+        "ruby --version",
+      ]
+
+      const isReadOnly = readOnlyCommands.some(
+        (cmd) => params.command.startsWith(cmd) || params.command === cmd,
+      )
+
+      if (!isReadOnly) {
+        throw new Error(
+          "Cannot execute write/modify commands in planning mode. Only read-only commands are allowed. Please present your plan first and wait for approval before making any system changes.",
+        )
+      }
+    }
+
     const timeout = Math.min(params.timeout ?? DEFAULT_TIMEOUT, MAX_TIMEOUT)
     if (BANNED_COMMANDS.some((item) => params.command.startsWith(item)))
       throw new Error(`Command '${params.command}' is not allowed`)
