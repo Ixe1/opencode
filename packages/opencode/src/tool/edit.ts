@@ -5,15 +5,16 @@
 import { z } from "zod"
 import * as path from "path"
 import { Tool } from "./tool"
-import { FileTimes } from "./util/file-times"
 import { LSP } from "../lsp"
 import { createTwoFilesPatch } from "diff"
 import { Permission } from "../permission"
 import DESCRIPTION from "./edit.txt"
 import { App } from "../app/app"
-import { Format } from "../format"
 import { Checkpoint } from "../checkpoint"
 import { Config } from "../config/config"
+import { File } from "../file"
+import { Bus } from "../bus"
+import { FileTime } from "../file/time"
 
 export const EditTool = Tool.define({
   id: "edit",
@@ -76,7 +77,9 @@ export const EditTool = Tool.define({
       if (params.oldString === "") {
         contentNew = params.newString
         await Bun.write(filepath, params.newString)
-        await Format.run(filepath)
+        await Bus.publish(File.Event.Edited, {
+          file: filepath,
+        })
         return
       }
 
@@ -85,7 +88,7 @@ export const EditTool = Tool.define({
       if (!stats) throw new Error(`File ${filepath} not found`)
       if (stats.isDirectory())
         throw new Error(`Path is a directory, not a file: ${filepath}`)
-      await FileTimes.assert(ctx.sessionID, filepath)
+      await FileTime.assert(ctx.sessionID, filepath)
       contentOld = await file.text()
 
       contentNew = replace(
@@ -95,7 +98,9 @@ export const EditTool = Tool.define({
         params.replaceAll,
       )
       await file.write(contentNew)
-      await Format.run(filepath)
+      await Bus.publish(File.Event.Edited, {
+        file: filepath,
+      })
       contentNew = await file.text()
     })()
 
@@ -103,7 +108,7 @@ export const EditTool = Tool.define({
       createTwoFilesPatch(filepath, filepath, contentOld, contentNew),
     )
 
-    FileTimes.read(ctx.sessionID, filepath)
+    FileTime.read(ctx.sessionID, filepath)
 
     let output = ""
     await LSP.touchFile(filepath, true)

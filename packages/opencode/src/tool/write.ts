@@ -1,14 +1,15 @@
 import { z } from "zod"
 import * as path from "path"
 import { Tool } from "./tool"
-import { FileTimes } from "./util/file-times"
 import { LSP } from "../lsp"
 import { Permission } from "../permission"
 import DESCRIPTION from "./write.txt"
 import { App } from "../app/app"
-import { Format } from "../format"
 import { Checkpoint } from "../checkpoint"
 import { Config } from "../config/config"
+import { Bus } from "../bus"
+import { File } from "../file"
+import { FileTime } from "../file/time"
 
 export const WriteTool = Tool.define({
   id: "write",
@@ -29,7 +30,7 @@ export const WriteTool = Tool.define({
 
     const file = Bun.file(filepath)
     const exists = await file.exists()
-    if (exists) await FileTimes.assert(ctx.sessionID, filepath)
+    if (exists) await FileTime.assert(ctx.sessionID, filepath)
 
     await Permission.ask({
       id: "write",
@@ -61,8 +62,10 @@ export const WriteTool = Tool.define({
     }
 
     await Bun.write(filepath, params.content)
-    await Format.run(filepath)
-    FileTimes.read(ctx.sessionID, filepath)
+    await Bus.publish(File.Event.Edited, {
+      file: filepath,
+    })
+    FileTime.read(ctx.sessionID, filepath)
 
     let output = ""
     await LSP.touchFile(filepath, true)

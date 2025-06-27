@@ -28,6 +28,7 @@ export namespace Config {
     }
 
     log.info("loaded", result)
+
     return result
   })
 
