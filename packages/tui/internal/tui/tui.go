@@ -60,6 +60,12 @@ type appModel struct {
 
 func (a appModel) Init() tea.Cmd {
 	var cmds []tea.Cmd
+	
+	// Ensure theme is initialized before any rendering
+	if theme.CurrentTheme() == nil && a.app.State.Theme != "" {
+		theme.SetTheme(a.app.State.Theme)
+	}
+	
 	// https://github.com/charmbracelet/bubbletea/issues/1440
 	// https://github.com/sst/opencode/issues/127
 	if !util.IsWsl() {
@@ -370,9 +376,9 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 									planText.WriteString("\n")
 								}
 							}
-							planDialog := dialog.NewPlanApprovalDialogCmp(planText.String())
-							a.modal = &planDialog
-							break
+									planDialog := dialog.NewPlanApprovalDialogCmp(planText.String())
+									a.modal = &planDialog
+									break
 						}
 					}
 				}
@@ -460,6 +466,12 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a appModel) View() string {
+	// Ensure theme is initialized before rendering
+	if theme.CurrentTheme() == nil {
+		// Return empty string if theme is not ready
+		return ""
+	}
+	
 	layoutView := a.layout.View()
 	editorWidth, _ := a.editorContainer.GetSize()
 	editorX, editorY := a.editorContainer.GetPosition()
@@ -602,9 +614,16 @@ func (a appModel) executeCommand(command commands.Command) (tea.Model, tea.Cmd) 
 		// TODO: block until compaction is complete
 		a.app.CompactSession(context.Background())
 	case commands.SessionModeToggleCommand:
+		// Create session if it doesn't exist
 		if a.app.Session.Id == "" {
-			return a, toast.NewInfoToast("Start a conversation first to use planning mode")
+			session, err := a.app.CreateSession(context.Background())
+			if err != nil {
+				return a, toast.NewErrorToast("Failed to create session: " + err.Error())
+			}
+			a.app.Session = session
+			cmds = append(cmds, util.CmdHandler(app.SessionSelectedMsg(session)))
 		}
+		
 		currentMode := string(a.app.Session.Mode)
 		if currentMode == "" {
 			currentMode = "normal"

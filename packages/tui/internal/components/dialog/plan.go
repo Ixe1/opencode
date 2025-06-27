@@ -20,7 +20,6 @@ type PlanApprovalDialogCmp struct {
 	selected      int
 	viewport      viewport.Model
 	plan          string
-	ready         bool
 }
 
 // NewPlanApprovalDialogCmp creates a new PlanApprovalDialogCmp.
@@ -29,7 +28,6 @@ func NewPlanApprovalDialogCmp(plan string) PlanApprovalDialogCmp {
 		selected: 0,
 		viewport: viewport.Model{},
 		plan:     plan,
-		ready:    false,
 	}
 }
 
@@ -83,20 +81,11 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			viewportHeight = maxHeight
 		}
 		
-		if !m.ready {
-			m.viewport = viewport.New(
-				viewport.WithWidth(viewportWidth),
-				viewport.WithHeight(viewportHeight),
-			)
-			m.viewport.SetContent(m.plan)
-			m.ready = true
-		} else {
-			m.viewport = viewport.New(
-				viewport.WithWidth(viewportWidth),
-				viewport.WithHeight(viewportHeight),
-			)
-			m.viewport.SetContent(m.plan)
-		}
+		m.viewport = viewport.New(
+			viewport.WithWidth(viewportWidth),
+			viewport.WithHeight(viewportHeight),
+		)
+		m.viewport.SetContent(m.plan)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -104,9 +93,6 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model.
 func (m PlanApprovalDialogCmp) View() string {
-	if !m.ready {
-		return "\n  Initializing..."
-	}
 
 	t := theme.CurrentTheme()
 	baseStyle := styles.NewStyle().Foreground(t.Text())
