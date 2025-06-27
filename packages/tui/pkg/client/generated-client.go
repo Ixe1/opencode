@@ -17,10 +17,28 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for EventSessionModeChangedPropertiesMode.
+const (
+	EventSessionModeChangedPropertiesModeNormal   EventSessionModeChangedPropertiesMode = "normal"
+	EventSessionModeChangedPropertiesModePlanning EventSessionModeChangedPropertiesMode = "planning"
+)
+
 // Defines values for MessageInfoRole.
 const (
 	Assistant MessageInfoRole = "assistant"
 	User      MessageInfoRole = "user"
+)
+
+// Defines values for SessionInfoMode.
+const (
+	SessionInfoModeNormal   SessionInfoMode = "normal"
+	SessionInfoModePlanning SessionInfoMode = "planning"
+)
+
+// Defines values for PostSessionSetModeJSONBodyMode.
+const (
+	Normal   PostSessionSetModeJSONBodyMode = "normal"
+	Planning PostSessionSetModeJSONBodyMode = "planning"
 )
 
 // AppInfo defines model for App.Info.
@@ -289,6 +307,18 @@ type EventSessionError_Properties_Error struct {
 	union json.RawMessage
 }
 
+// EventSessionModeChanged defines model for Event.session.mode.changed.
+type EventSessionModeChanged struct {
+	Properties struct {
+		Mode      EventSessionModeChangedPropertiesMode `json:"mode"`
+		SessionID string                                `json:"sessionID"`
+	} `json:"properties"`
+	Type string `json:"type"`
+}
+
+// EventSessionModeChangedPropertiesMode defines model for EventSessionModeChanged.Properties.Mode.
+type EventSessionModeChangedPropertiesMode string
+
 // EventSessionUpdated defines model for Event.session.updated.
 type EventSessionUpdated struct {
 	Properties struct {
@@ -515,8 +545,9 @@ type PermissionInfo struct {
 
 // SessionInfo defines model for session.info.
 type SessionInfo struct {
-	Id       string  `json:"id"`
-	ParentID *string `json:"parentID,omitempty"`
+	Id       string          `json:"id"`
+	Mode     SessionInfoMode `json:"mode"`
+	ParentID *string         `json:"parentID,omitempty"`
 	Share    *struct {
 		Url string `json:"url"`
 	} `json:"share,omitempty"`
@@ -527,6 +558,9 @@ type SessionInfo struct {
 	Title   string `json:"title"`
 	Version string `json:"version"`
 }
+
+// SessionInfoMode defines model for SessionInfo.Mode.
+type SessionInfoMode string
 
 // PostFileSearchJSONBody defines parameters for PostFileSearch.
 type PostFileSearchJSONBody struct {
@@ -563,6 +597,15 @@ type PostSessionMessagesJSONBody struct {
 	SessionID string `json:"sessionID"`
 }
 
+// PostSessionSetModeJSONBody defines parameters for PostSessionSetMode.
+type PostSessionSetModeJSONBody struct {
+	Mode      PostSessionSetModeJSONBodyMode `json:"mode"`
+	SessionID string                         `json:"sessionID"`
+}
+
+// PostSessionSetModeJSONBodyMode defines parameters for PostSessionSetMode.
+type PostSessionSetModeJSONBodyMode string
+
 // PostSessionShareJSONBody defines parameters for PostSessionShare.
 type PostSessionShareJSONBody struct {
 	SessionID string `json:"sessionID"`
@@ -597,6 +640,9 @@ type PostSessionInitializeJSONRequestBody PostSessionInitializeJSONBody
 
 // PostSessionMessagesJSONRequestBody defines body for PostSessionMessages for application/json ContentType.
 type PostSessionMessagesJSONRequestBody PostSessionMessagesJSONBody
+
+// PostSessionSetModeJSONRequestBody defines body for PostSessionSetMode for application/json ContentType.
+type PostSessionSetModeJSONRequestBody PostSessionSetModeJSONBody
 
 // PostSessionShareJSONRequestBody defines body for PostSessionShare for application/json ContentType.
 type PostSessionShareJSONRequestBody PostSessionShareJSONBody
@@ -1027,6 +1073,34 @@ func (t *Event) MergeEventSessionError(v EventSessionError) error {
 	return err
 }
 
+// AsEventSessionModeChanged returns the union data inside the Event as a EventSessionModeChanged
+func (t Event) AsEventSessionModeChanged() (EventSessionModeChanged, error) {
+	var body EventSessionModeChanged
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventSessionModeChanged overwrites any union data inside the Event as the provided EventSessionModeChanged
+func (t *Event) FromEventSessionModeChanged(v EventSessionModeChanged) error {
+	v.Type = "session.mode.changed"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventSessionModeChanged performs a merge with any union data inside the Event, using the provided EventSessionModeChanged
+func (t *Event) MergeEventSessionModeChanged(v EventSessionModeChanged) error {
+	v.Type = "session.mode.changed"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t Event) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -1055,6 +1129,8 @@ func (t Event) ValueByDiscriminator() (interface{}, error) {
 		return t.AsEventSessionDeleted()
 	case "session.error":
 		return t.AsEventSessionError()
+	case "session.mode.changed":
+		return t.AsEventSessionModeChanged()
 	case "session.updated":
 		return t.AsEventSessionUpdated()
 	case "storage.write":
@@ -1770,6 +1846,11 @@ type ClientInterface interface {
 
 	PostSessionMessages(ctx context.Context, body PostSessionMessagesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostSessionSetModeWithBody request with any body
+	PostSessionSetModeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostSessionSetMode(ctx context.Context, body PostSessionSetModeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostSessionShareWithBody request with any body
 	PostSessionShareWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2028,6 +2109,30 @@ func (c *Client) PostSessionMessagesWithBody(ctx context.Context, contentType st
 
 func (c *Client) PostSessionMessages(ctx context.Context, body PostSessionMessagesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostSessionMessagesRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostSessionSetModeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSessionSetModeRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostSessionSetMode(ctx context.Context, body PostSessionSetModeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSessionSetModeRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2593,6 +2698,46 @@ func NewPostSessionMessagesRequestWithBody(server string, contentType string, bo
 	return req, nil
 }
 
+// NewPostSessionSetModeRequest calls the generic PostSessionSetMode builder with application/json body
+func NewPostSessionSetModeRequest(server string, body PostSessionSetModeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostSessionSetModeRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostSessionSetModeRequestWithBody generates requests for PostSessionSetMode with any type of body
+func NewPostSessionSetModeRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/session_set_mode")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewPostSessionShareRequest calls the generic PostSessionShare builder with application/json body
 func NewPostSessionShareRequest(server string, body PostSessionShareJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2812,6 +2957,11 @@ type ClientWithResponsesInterface interface {
 	PostSessionMessagesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionMessagesResponse, error)
 
 	PostSessionMessagesWithResponse(ctx context.Context, body PostSessionMessagesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSessionMessagesResponse, error)
+
+	// PostSessionSetModeWithBodyWithResponse request with any body
+	PostSessionSetModeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionSetModeResponse, error)
+
+	PostSessionSetModeWithResponse(ctx context.Context, body PostSessionSetModeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSessionSetModeResponse, error)
 
 	// PostSessionShareWithBodyWithResponse request with any body
 	PostSessionShareWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionShareResponse, error)
@@ -3168,6 +3318,28 @@ func (r PostSessionMessagesResponse) StatusCode() int {
 	return 0
 }
 
+type PostSessionSetModeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SessionInfo
+}
+
+// Status returns HTTPResponse.Status
+func (r PostSessionSetModeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostSessionSetModeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type PostSessionShareResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3415,6 +3587,23 @@ func (c *ClientWithResponses) PostSessionMessagesWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParsePostSessionMessagesResponse(rsp)
+}
+
+// PostSessionSetModeWithBodyWithResponse request with arbitrary body returning *PostSessionSetModeResponse
+func (c *ClientWithResponses) PostSessionSetModeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionSetModeResponse, error) {
+	rsp, err := c.PostSessionSetModeWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSessionSetModeResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostSessionSetModeWithResponse(ctx context.Context, body PostSessionSetModeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSessionSetModeResponse, error) {
+	rsp, err := c.PostSessionSetMode(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSessionSetModeResponse(rsp)
 }
 
 // PostSessionShareWithBodyWithResponse request with arbitrary body returning *PostSessionShareResponse
@@ -3863,6 +4052,32 @@ func ParsePostSessionMessagesResponse(rsp *http.Response) (*PostSessionMessagesR
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest []MessageInfo
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostSessionSetModeResponse parses an HTTP response from a PostSessionSetModeWithResponse call
+func ParsePostSessionSetModeResponse(rsp *http.Response) (*PostSessionSetModeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostSessionSetModeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SessionInfo
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

@@ -77,6 +77,7 @@ const (
 	SessionShareCommand         CommandName = "session_share"
 	SessionInterruptCommand     CommandName = "session_interrupt"
 	SessionCompactCommand       CommandName = "session_compact"
+	SessionModeToggleCommand    CommandName = "session_mode_toggle"
 	ToolDetailsCommand          CommandName = "tool_details"
 	ModelListCommand            CommandName = "model_list"
 	ThemeListCommand            CommandName = "theme_list"
@@ -165,6 +166,12 @@ func LoadFromConfig(config *client.ConfigInfo) CommandRegistry {
 			Description: "compact the session",
 			Keybindings: parseBindings("<leader>c"),
 			Trigger:     "compact",
+		},
+		{
+			Name:        SessionModeToggleCommand,
+			Description: "toggle planning mode",
+			Keybindings: parseBindings("shift+tab"),
+			Trigger:     "mode",
 		},
 		{
 			Name:        ToolDetailsCommand,

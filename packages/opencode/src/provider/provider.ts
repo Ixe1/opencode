@@ -406,28 +406,27 @@ export namespace Provider {
     LspHoverTool,
     PatchTool,
     ReadTool,
-    EditTool,
-    // MultiEditTool,
     WriteTool,
     TodoWriteTool,
     // TaskTool,
     TodoReadTool,
   ]
 
-  const TOOL_MAPPING: Record<string, Tool.Info[]> = {
-    anthropic: TOOLS.filter((t) => t.id !== "patch"),
-    openai: TOOLS.map((t) => ({
-      ...t,
-      parameters: optionalToNullable(t.parameters),
-    })),
-    azure: TOOLS.map((t) => ({
-      ...t,
-      parameters: optionalToNullable(t.parameters),
-    })),
-    google: TOOLS,
-  }
+  const PLANNING_MODE_TOOLS = [
+    ReadTool,
+    GlobTool,
+    GrepTool,
+    ListTool,
+    LspDiagnosticTool,
+    LspHoverTool,
+    TodoReadTool,
+    TodoWriteTool,
+    WebFetchTool,
+    // WebSearchTool is not imported, so excluding it for now
+  ]
 
-  export async function tools(providerID: string) {
+
+  export async function tools(providerID: string, mode: "normal" | "planning" = "normal"): Promise<Tool.Info[]> {
     /*
     const cfg = await Config.get()
     if (cfg.tool?.provider?.[providerID])
@@ -435,7 +434,25 @@ export namespace Provider {
         (id) => TOOLS.find((t) => t.id === id)!,
       )
         */
-    return TOOL_MAPPING[providerID] ?? TOOLS
+    const baseTools = mode === "planning" ? PLANNING_MODE_TOOLS : TOOLS
+    
+    if (mode === "planning") {
+      // In planning mode, return the same tools for all providers (no transformations)
+      return baseTools
+    }
+    
+    // Normal mode: apply provider-specific transformations
+    if (providerID === "anthropic") {
+      return baseTools.filter((t) => t.id !== "patch")
+    }
+    if (providerID === "openai" || providerID === "azure") {
+      return baseTools.map((t) => ({
+        ...t,
+        parameters: optionalToNullable(t.parameters),
+      }))
+    }
+    
+    return baseTools
   }
 
   function optionalToNullable(schema: z.ZodTypeAny): z.ZodTypeAny {

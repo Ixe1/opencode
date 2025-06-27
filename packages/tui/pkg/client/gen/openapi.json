@@ -443,6 +443,50 @@
         }
       }
     },
+    "/session_set_mode": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successfully set session mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.info"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postSession_set_mode",
+        "parameters": [],
+        "description": "Set session mode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "normal",
+                      "planning"
+                    ]
+                  }
+                },
+                "required": [
+                  "sessionID",
+                  "mode"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/session_chat": {
       "post": {
         "responses": {
@@ -620,6 +664,9 @@
           },
           {
             "$ref": "#/components/schemas/Event.session.error"
+          },
+          {
+            "$ref": "#/components/schemas/Event.session.mode.changed"
           }
         ],
         "discriminator": {
@@ -633,7 +680,8 @@
             "message.part.updated": "#/components/schemas/Event.message.part.updated",
             "session.updated": "#/components/schemas/Event.session.updated",
             "session.deleted": "#/components/schemas/Event.session.deleted",
-            "session.error": "#/components/schemas/Event.session.error"
+            "session.error": "#/components/schemas/Event.session.error",
+            "session.mode.changed": "#/components/schemas/Event.session.mode.changed"
           }
         }
       },
@@ -1390,13 +1438,22 @@
               "created",
               "updated"
             ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "planning"
+            ],
+            "default": "normal"
           }
         },
         "required": [
           "id",
           "title",
           "version",
-          "time"
+          "time",
+          "mode"
         ]
       },
       "Event.session.deleted": {
@@ -1455,6 +1512,38 @@
                 }
               }
             }
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.session.mode.changed": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "session.mode.changed"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "planning"
+                ]
+              }
+            },
+            "required": [
+              "sessionID",
+              "mode"
+            ]
           }
         },
         "required": [

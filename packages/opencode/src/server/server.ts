@@ -447,6 +447,34 @@ export namespace Server {
         },
       )
       .post(
+        "/session_set_mode",
+        describeRoute({
+          description: "Set session mode",
+          responses: {
+            200: {
+              description: "Successfully set session mode",
+              content: {
+                "application/json": {
+                  schema: resolver(Session.Info),
+                },
+              },
+            },
+          },
+        }),
+        zValidator(
+          "json",
+          z.object({
+            sessionID: z.string(),
+            mode: z.enum(["normal", "planning"]),
+          }),
+        ),
+        async (c) => {
+          const body = c.req.valid("json")
+          const session = await Session.setMode(body.sessionID, body.mode)
+          return c.json(session)
+        },
+      )
+      .post(
         "/session_chat",
         describeRoute({
           description: "Chat with a model",

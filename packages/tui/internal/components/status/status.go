@@ -94,6 +94,7 @@ func (m statusComponent) View() string {
 		Render(m.app.Info.Path.Cwd)
 
 	sessionInfo := ""
+	modeIndicator := ""
 	if m.app.Session.Id != "" {
 		tokens := float32(0)
 		cost := float32(0)
@@ -118,17 +119,31 @@ func (m statusComponent) View() string {
 			Background(t.BackgroundElement()).
 			Padding(0, 1).
 			Render(formatTokensAndCost(tokens, contextWindow, cost))
+
+		// Add mode indicator
+		mode := "NORMAL"
+		modeColor := t.Text()
+		if string(m.app.Session.Mode) == "planning" {
+			mode = "PLANNING"
+			modeColor = t.Primary()
+		}
+		modeIndicator = styles.NewStyle().
+			Foreground(modeColor).
+			Background(t.BackgroundElement()).
+			Bold(true).
+			Padding(0, 1).
+			Render(fmt.Sprintf("[%s]", mode))
 	}
 
 	// diagnostics := styles.Padded().Background(t.BackgroundElement()).Render(m.projectDiagnostics())
 
 	space := max(
 		0,
-		m.width-lipgloss.Width(logo)-lipgloss.Width(cwd)-lipgloss.Width(sessionInfo),
+		m.width-lipgloss.Width(logo)-lipgloss.Width(cwd)-lipgloss.Width(modeIndicator)-lipgloss.Width(sessionInfo),
 	)
 	spacer := styles.NewStyle().Background(t.BackgroundPanel()).Width(space).Render("")
 
-	status := logo + cwd + spacer + sessionInfo
+	status := logo + cwd + spacer + modeIndicator + sessionInfo
 
 	blank := styles.NewStyle().Background(t.Background()).Width(m.width).Render("")
 	return blank + "\n" + status

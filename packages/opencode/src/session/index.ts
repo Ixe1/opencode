@@ -53,6 +53,7 @@ export namespace Session {
         created: z.number(),
         updated: z.number(),
       }),
+      mode: z.enum(["normal", "planning"]).default("normal"),
     })
     .openapi({
       ref: "session.info",
@@ -82,6 +83,13 @@ export namespace Session {
       "session.error",
       z.object({
         error: Message.Info.shape.metadata.shape.error,
+      }),
+    ),
+    ModeChanged: Bus.event(
+      "session.mode.changed",
+      z.object({
+        sessionID: z.string(),
+        mode: z.enum(["normal", "planning"]),
       }),
     ),
   }
@@ -118,6 +126,7 @@ export namespace Session {
         created: Date.now(),
         updated: Date.now(),
       },
+      mode: "normal",
     }
     log.info("created", result)
     state().sessions.set(result.id, result)
@@ -185,6 +194,19 @@ export namespace Session {
     Bus.publish(Event.Updated, {
       info: session,
     })
+    return session
+  }
+
+  export async function setMode(id: string, mode: "normal" | "planning") {
+    const session = await update(id, (session) => {
+      session.mode = mode
+    })
+    if (session) {
+      Bus.publish(Event.ModeChanged, {
+        sessionID: id,
+        mode: mode,
+      })
+    }
     return session
   }
 
@@ -354,7 +376,14 @@ export namespace Session {
     await updateMessage(msg)
     msgs.push(msg)
 
-    const system = input.system ?? SystemPrompt.provider(input.providerID)
+    // Get session to check mode
+    const sessionInfo = await get(input.sessionID)
+    
+    const system = input.system ?? (
+      sessionInfo.mode === "planning" 
+        ? SystemPrompt.planMode(input.providerID)
+        : SystemPrompt.provider(input.providerID)
+    )
     system.push(...(await SystemPrompt.environment()))
     system.push(...(await SystemPrompt.custom()))
 
@@ -389,7 +418,7 @@ export namespace Session {
     await updateMessage(next)
     const tools: Record<string, AITool> = {}
 
-    for (const item of await Provider.tools(input.providerID)) {
+    for (const item of await Provider.tools(input.providerID, sessionInfo.mode)) {
       tools[item.id.replaceAll(".", "_")] = tool({
         id: item.id as any,
         description: item.description,
