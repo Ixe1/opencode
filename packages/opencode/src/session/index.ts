@@ -95,7 +95,7 @@ export namespace Session {
     Error: Bus.event(
       "session.error",
       z.object({
-        error: Message.Info.shape.metadata.shape.error,
+        error: Message.ErrorSchema,
       }),
     ),
     ModeChanged: Bus.event(

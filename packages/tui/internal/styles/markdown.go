@@ -31,12 +31,12 @@ func GetMarkdownRenderer(width int, backgroundColor compat.AdaptiveColor) *glamo
 func generateMarkdownStyleConfig(backgroundColor compat.AdaptiveColor) ansi.StyleConfig {
 	t := theme.CurrentTheme()
 	background := AdaptiveColorToString(backgroundColor)
-	
+
 	// If background is nil or empty, don't set it to let terminal background show through
 	if background != nil && *background == "" {
 		background = nil
 	}
-	
+
 	// Additional check: if we're getting a very light color in dark mode or very dark in light mode,
 	// it's likely a detection error - don't set the background
 	if background != nil && *background != "" {
@@ -45,6 +45,14 @@ func generateMarkdownStyleConfig(backgroundColor compat.AdaptiveColor) ansi.Styl
 			_, _, l := c.Hsl()
 			// If luminance suggests inverted detection, don't set background
 			if (Terminal.BackgroundIsDark && l > 0.9) || (!Terminal.BackgroundIsDark && l < 0.1) {
+				background = nil
+			}
+
+			// Additional safeguard: Check if the background is too close to pure white or black
+			r, g, b := c.RGB255()
+			// If it's very close to white (all components > 250) or black (all < 5)
+			if (r > 250 && g > 250 && b > 250) || (r < 5 && g < 5 && b < 5) {
+				// This is likely a problematic color, don't use it
 				background = nil
 			}
 		}

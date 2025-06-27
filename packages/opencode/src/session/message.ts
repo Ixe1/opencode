@@ -9,6 +9,18 @@ export namespace Message {
     z.object({}),
   )
 
+  // Define error schema lazily to avoid initialization issues
+  const getErrorSchema = () => z
+    .discriminatedUnion("name", [
+      Provider.AuthError.Schema,
+      NamedError.Unknown.Schema,
+      OutputLengthError.Schema,
+    ])
+    .optional()
+
+  // Export error schema for use in other modules
+  export const ErrorSchema = z.lazy(() => getErrorSchema())
+
   export const ToolCall = z
     .object({
       state: z.literal("call"),
@@ -146,13 +158,7 @@ export namespace Message {
             created: z.number(),
             completed: z.number().optional(),
           }),
-          error: z
-            .discriminatedUnion("name", [
-              Provider.AuthError.Schema,
-              NamedError.Unknown.Schema,
-              OutputLengthError.Schema,
-            ])
-            .optional(),
+          error: z.lazy(() => getErrorSchema()),
           sessionID: z.string(),
           tool: z.record(
             z.string(),
