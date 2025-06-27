@@ -14,7 +14,46 @@
   <a href="https://github.com/sst/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/sst/opencode/publish.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> **Note:** This is an enhanced fork of the original opencode with additional features for safer AI-assisted development.
+
 [![opencode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
+
+---
+
+### Fork Enhancements
+
+This fork includes several enhancements over the original opencode:
+
+#### 🎯 **Planning Mode** (Shift+Tab)
+
+- Research-only mode for safe exploration before making changes
+- AI analyzes codebase using only read operations
+- Generates detailed step-by-step implementation plans
+- Switch to implementation mode after plan approval
+- Helps prevent mistakes by thinking through changes first
+
+#### 💾 **Automatic Checkpointing System**
+
+- Creates shadow repository snapshots before file modifications
+- Automatic safety net for all AI-assisted code changes
+- Easy rollback capabilities if something goes wrong
+- Configurable via settings (can be disabled if needed)
+
+#### 🎨 **Enhanced TUI Experience**
+
+- Improved theme system with better color detection
+- Enhanced markdown rendering with safeguards
+- Better dialog components for planning and checkpoints
+- More robust error handling and display
+
+#### 🛠️ **Developer Experience**
+
+- Added `run-local.sh` script for easier local development
+- Better error schema handling to prevent initialization issues
+- Improved TypeScript/Go client generation workflow
+- Enhanced documentation with CLAUDE.md for AI assistance
+
+These features make AI-assisted development safer and more predictable, especially for complex refactoring tasks.
 
 ---
 
