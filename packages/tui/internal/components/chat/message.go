@@ -129,7 +129,9 @@ func renderContentBlock(content string, options ...renderingOption) string {
 		option(renderer)
 	}
 
-	style := styles.NewStyle().Foreground(t.Text()).
+	style := styles.NewStyle().
+		Foreground(t.Text()).
+		Background(t.BackgroundPanel()). // Set explicit background color
 		// MarginTop(renderer.marginTop).
 		// MarginBottom(renderer.marginBottom).
 		PaddingTop(renderer.paddingTop).

@@ -52,6 +52,36 @@ func (t *SystemTheme) initializeColors() {
 	// Generate gray scale based on terminal background
 	grays := t.generateGrayScale()
 
+	// Override background colors when dark mode is forced but terminal is light
+	// This ensures UI elements have proper dark backgrounds
+	if t.terminalBgIsDark && t.terminalBg != nil {
+		r, g, b, _ := t.terminalBg.RGBA()
+		bgR := float64(r) / 257.0
+		bgG := float64(g) / 257.0
+		bgB := float64(b) / 257.0
+		luminance := 0.2126*bgR + 0.7152*bgG + 0.0722*bgB
+
+		// If the terminal background is actually light (luminance > 110)
+		// but we're forcing dark mode, use dark colors instead
+		if luminance > 110 {
+			// Use standard dark theme colors
+			darkBg := "#0a0a0a"
+			t.BackgroundColor = compat.AdaptiveColor{
+				Dark:  lipgloss.Color(darkBg),
+				Light: lipgloss.Color(darkBg),
+			}
+			// Generate proper dark grays
+			grays[2] = compat.AdaptiveColor{
+				Dark:  lipgloss.Color("#1a1a1a"),
+				Light: lipgloss.Color("#1a1a1a"),
+			}
+			grays[3] = compat.AdaptiveColor{
+				Dark:  lipgloss.Color("#2a2a2a"),
+				Light: lipgloss.Color("#2a2a2a"),
+			}
+		}
+	}
+
 	// Set ANSI colors for primary colors
 	t.PrimaryColor = compat.AdaptiveColor{
 		Dark:  lipgloss.Cyan,
@@ -93,10 +123,13 @@ func (t *SystemTheme) initializeColors() {
 	t.TextMutedColor = t.generateMutedTextColor()
 
 	// Background colors - use the actual terminal background color
+	// unless it was already overridden above
 	bgHex := t.colorToHex(t.terminalBg)
-	t.BackgroundColor = compat.AdaptiveColor{
-		Dark:  lipgloss.Color(bgHex),
-		Light: lipgloss.Color(bgHex),
+	if t.BackgroundColor.Dark == nil {
+		t.BackgroundColor = compat.AdaptiveColor{
+			Dark:  lipgloss.Color(bgHex),
+			Light: lipgloss.Color(bgHex),
+		}
 	}
 	// Use a slightly different shade for panel backgrounds
 	t.BackgroundPanelColor = grays[2]
