@@ -85,6 +85,10 @@ func New(
 		config.SaveState(appStatePath, appState)
 	}
 
+	// Force dark mode
+	darkMode := true
+	appState.ForceDarkMode = &darkMode
+
 	if configInfo.Theme != nil {
 		appState.Theme = *configInfo.Theme
 	}
@@ -107,7 +111,7 @@ func New(
 		if appState.Theme == "system" && styles.Terminal != nil {
 			theme.UpdateSystemTheme(
 				styles.Terminal.Background,
-				styles.Terminal.BackgroundIsDark,
+				true, // Always use dark mode
 			)
 		}
 		theme.SetTheme(appState.Theme)

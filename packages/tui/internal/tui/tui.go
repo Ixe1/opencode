@@ -239,21 +239,19 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		return a, tea.Batch(cmds...)
 	case tea.BackgroundColorMsg:
-		isDark := msg.IsDark()
-		// Check if we have a forced dark mode setting
-		if a.app.State.ForceDarkMode != nil {
-			isDark = *a.app.State.ForceDarkMode
-		}
+		// Always use dark mode
+		isDark := true
+		darkMode := true
 		styles.Terminal = &styles.TerminalInfo{
 			Background:       msg.Color,
-			BackgroundIsDark: isDark,
-			ForceDarkMode:    a.app.State.ForceDarkMode,
+			BackgroundIsDark: true,
+			ForceDarkMode:    &darkMode,
 		}
 		slog.Debug("Background color", "color", msg.String(), "isDark", isDark, "forced", a.app.State.ForceDarkMode != nil)
 		return a, func() tea.Msg {
 			theme.UpdateSystemTheme(
 				styles.Terminal.Background,
-				styles.Terminal.BackgroundIsDark,
+				true, // Always use dark mode
 			)
 			return dialog.ThemeSelectedMsg{
 				ThemeName: theme.CurrentThemeName(),
