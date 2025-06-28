@@ -34,6 +34,7 @@ type App struct {
 	Session   *opencode.Session
 	Messages  []opencode.Message
 	Commands  commands.CommandRegistry
+	Mode      string // Track current session mode
 }
 
 type SessionSelectedMsg = *opencode.Session
@@ -122,6 +123,7 @@ func New(
 		Session:   &opencode.Session{},
 		Messages:  []opencode.Message{},
 		Commands:  commands.LoadFromConfig(configInfo),
+		Mode:      "normal", // Default to normal mode
 	}
 
 	return app, nil

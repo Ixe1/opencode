@@ -16,7 +16,7 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
-	github.com/sst/opencode-sdk-go v0.1.0-alpha.5
+	github.com/sst/opencode-sdk-go v0.1.0-alpha.6
 	github.com/tidwall/gjson v1.14.4
 	rsc.io/qr v0.2.0
 )

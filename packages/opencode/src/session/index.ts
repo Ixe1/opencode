@@ -435,7 +435,7 @@ export namespace Session {
     sessionID: string
     providerID: string
     modelID: string
-    parts: Message.MessagePart[]
+    parts: Message.Part[]
     system?: string[]
     tools?: Tool.Info[]
   }) {
@@ -1399,7 +1399,7 @@ function toUIMessage(msg: Message.Info): UIMessage {
   throw new Error("not implemented")
 }
 
-function toParts(parts: Message.MessagePart[]): UIMessage["parts"] {
+function toParts(parts: Message.Part[]): UIMessage["parts"] {
   const result: UIMessage["parts"] = []
   for (const part of parts) {
     switch (part.type) {

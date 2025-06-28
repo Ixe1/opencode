@@ -14,6 +14,7 @@ import (
 
 	"github.com/sst/opencode-sdk-go"
 	"github.com/sst/opencode/internal/app"
+	// "github.com/sst/opencode/pkg/client" // TODO: Re-enable when using client types
 	"github.com/sst/opencode/internal/commands"
 	"github.com/sst/opencode/internal/completions"
 	"github.com/sst/opencode/internal/components/chat"
@@ -289,18 +290,15 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dialog.ClosePlanApprovalDialogMsg:
 		a.modal = nil
 		if msg.Approved && a.app.Session != nil {
-			// Call the plan approval endpoint
-			ctx := context.Background()
-			resp, err := a.app.Client.PostSessionApprovePlanWithResponse(ctx, client.PostSessionApprovePlanJSONRequestBody{
-				SessionID:   a.app.Session.Id,
-				PlanContent: msg.PlanContent,
-			})
+			// Call the plan approval endpoint using our workaround
+			err := approvePlan(context.Background(), a.app.Session.ID, msg.PlanContent)
 			if err != nil {
 				return a, toast.NewErrorToast("Failed to approve plan: " + err.Error())
 			}
-			if resp.StatusCode() != 200 {
-				return a, toast.NewErrorToast("Failed to approve plan")
-			}
+
+			// Update mode to normal after plan approval
+			setLocalMode(a.app.Session.ID, ModeNormal)
+			a.app.Mode = "normal"
 
 			// Send a message to trigger the AI to proceed with implementation after a brief delay
 			delayedSendCmd := tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
@@ -342,11 +340,14 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.app.Session != nil && msg.Properties.Info.ID == a.app.Session.ID {
 			a.app.Session = &opencode.Session{}
 			a.app.Messages = []opencode.Message{}
+			a.app.Mode = "normal"
 		}
 		return a, toast.NewSuccessToast("Session deleted successfully")
 	case opencode.EventListResponseEventSessionUpdated:
 		if msg.Properties.Info.ID == a.app.Session.ID {
 			a.app.Session = &msg.Properties.Info
+			// Keep the current mode from the tracker
+			a.app.Mode = string(getCurrentMode(msg.Properties.Info.ID))
 		}
 	case opencode.EventListResponseEventMessageUpdated:
 		if msg.Properties.Info.Metadata.SessionID == a.app.Session.ID {
@@ -383,22 +384,30 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Check if this is a plan message and show approval dialog
-			if msg.Properties.Info.Role == client.Assistant &&
-				msg.Properties.Info.Metadata.PlanDetected != nil &&
-				*msg.Properties.Info.Metadata.PlanDetected &&
-				a.app.Session != nil && a.app.Session.Mode == "planning" {
-				// Extract plan content from message
+			// Workaround: Check if we're in planning mode and this is an assistant message
+			if msg.Properties.Info.Role == opencode.MessageRoleAssistant &&
+				a.app.Session != nil &&
+				getCurrentMode(a.app.Session.ID) == ModePlanning {
+
+				// Extract plan content from message parts
 				var planContent strings.Builder
 				for _, part := range msg.Properties.Info.Parts {
-					// Try to get text part
-					if textPart, err := part.AsMessagePartText(); err == nil {
-						planContent.WriteString(textPart.Text)
+					// Check if this is a text part
+					switch part.Type {
+					case opencode.MessagePartTypeText:
+						// The text is directly in part.Text field
+						if part.Text != "" {
+							planContent.WriteString(part.Text)
+						}
 					}
 				}
 
-				// Show plan approval dialog
-				planDialog := dialog.NewPlanApprovalDialogCmp(planContent.String())
-				a.modal = &planDialog
+				// Check if the content looks like a plan
+				if planContent.Len() > 0 && detectPlanInMessage(planContent.String()) {
+					// Show plan approval dialog
+					planDialog := dialog.NewPlanApprovalDialogCmp(planContent.String())
+					a.modal = &planDialog
+				}
 			}
 		}
 	case opencode.EventListResponseEventSessionError:
@@ -429,6 +438,8 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.app.Session = msg
 		a.app.Messages = messages
+		// Set the mode from the tracker
+		a.app.Mode = string(getCurrentMode(msg.ID))
 	case app.ModelSelectedMsg:
 		a.app.Provider = &msg.Provider
 		a.app.Model = &msg.Model
@@ -596,6 +607,7 @@ func (a appModel) executeCommand(command commands.Command) (tea.Model, tea.Cmd) 
 		}
 		a.app.Session = &opencode.Session{}
 		a.app.Messages = []opencode.Message{}
+		a.app.Mode = "normal"
 		cmds = append(cmds, util.CmdHandler(app.SessionClearedMsg{}))
 	case commands.SessionListCommand:
 		sessionDialog := dialog.NewSessionDialog(a.app)
@@ -622,20 +634,20 @@ func (a appModel) executeCommand(command commands.Command) (tea.Model, tea.Cmd) 
 		// TODO: block until compaction is complete
 		a.app.CompactSession(context.Background())
 	case commands.SessionStatsCommand:
-		if a.app.Session.Id == "" {
+		if a.app.Session.ID == "" {
 			return a, toast.NewErrorToast("No active session")
 		}
 		// Send /stats command to backend
 		return a, a.app.SendChatMessage(context.Background(), "/stats", nil)
 	case commands.CheckpointListCommand:
-		if a.app.Session.Id == "" {
+		if a.app.Session.ID == "" {
 			return a, toast.NewErrorToast("No active session")
 		}
 		checkpointDialog := dialog.NewCheckpointDialog(a.app)
 		a.modal = checkpointDialog
 	case commands.SessionModeToggleCommand:
 		// Create session if it doesn't exist
-		if a.app.Session.Id == "" {
+		if a.app.Session.ID == "" {
 			session, err := a.app.CreateSession(context.Background())
 			if err != nil {
 				return a, toast.NewErrorToast("Failed to create session: " + err.Error())
@@ -644,48 +656,33 @@ func (a appModel) executeCommand(command commands.Command) (tea.Model, tea.Cmd) 
 			cmds = append(cmds, util.CmdHandler(app.SessionSelectedMsg(session)))
 		}
 
-		currentMode := string(a.app.Session.Mode)
-		if currentMode == "" {
-			currentMode = "normal"
-		}
-		// Cycle through modes: normal -> planning -> review -> normal
-		var newMode string
-		switch currentMode {
-		case "normal":
-			newMode = "planning"
-		case "planning":
-			newMode = "review"
-		case "review":
-			newMode = "normal"
-		default:
-			newMode = "normal"
-		}
-		response, err := a.app.Client.PostSessionSetModeWithResponse(
-			context.Background(),
-			client.PostSessionSetModeJSONRequestBody{
-				SessionID: a.app.Session.Id,
-				Mode:      client.PostSessionSetModeJSONBodyMode(newMode),
-			},
-		)
+		// Get current mode and cycle to next
+		currentMode := getCurrentMode(a.app.Session.ID)
+		newMode := cycleSessionMode(currentMode)
+
+		// Set the new mode via direct HTTP call
+		err := setSessionMode(context.Background(), a.app.Session.ID, newMode)
 		if err != nil {
 			slog.Error("Failed to toggle session mode", "error", err)
-			return a, toast.NewErrorToast("Failed to toggle session mode")
+			return a, toast.NewErrorToast("Failed to toggle session mode: " + err.Error())
 		}
-		if response.JSON200 != nil {
-			a.app.Session = response.JSON200
-			var modeText string
-			switch newMode {
-			case "normal":
-				modeText = "Normal mode activated"
-			case "planning":
-				modeText = "Planning mode activated"
-			case "review":
-				modeText = "Review mode activated"
-			default:
-				modeText = "Mode changed to " + newMode
-			}
-			cmds = append(cmds, toast.NewInfoToast(modeText))
+
+		// Update the mode in the app
+		a.app.Mode = string(newMode)
+
+		// Show success message
+		var modeText string
+		switch newMode {
+		case ModeNormal:
+			modeText = "Normal mode activated"
+		case ModePlanning:
+			modeText = "Planning mode activated"
+		case ModeReview:
+			modeText = "Review mode activated"
+		default:
+			modeText = "Mode changed to " + string(newMode)
 		}
+		cmds = append(cmds, toast.NewInfoToast(modeText))
 	case commands.ToolDetailsCommand:
 		message := "Tool details are now visible"
 		if a.messages.ToolDetailsVisible() {

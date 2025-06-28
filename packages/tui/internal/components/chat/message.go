@@ -243,7 +243,8 @@ func renderText(message opencode.Message, text string, author string) string {
 	content = strings.Join([]string{content, info}, "\n")
 
 	// Check if this is a clarification question
-	isClarification := message.Metadata.ClarificationQuestion != nil && *message.Metadata.ClarificationQuestion
+	// TODO: Uncomment when ClarificationQuestion is available in SDK
+	isClarification := false // message.Metadata.ClarificationQuestion != nil && *message.Metadata.ClarificationQuestion
 
 	switch message.Role {
 	case opencode.MessageRoleUser:

@@ -559,7 +559,7 @@ export namespace Server {
           z.object({
             providerID: z.string(),
             modelID: z.string(),
-            parts: Message.MessagePart.array(),
+            parts: Message.Part.array(),
           }),
         ),
         async (c) => {

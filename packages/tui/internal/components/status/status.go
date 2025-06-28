@@ -123,7 +123,7 @@ func (m statusComponent) View() string {
 		// Add mode indicator
 		mode := "NORMAL"
 		modeColor := t.Text()
-		switch string(m.app.Session.Mode) {
+		switch m.app.Mode {
 		case "planning":
 			mode = "PLANNING"
 			modeColor = t.Primary()

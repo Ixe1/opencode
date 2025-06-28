@@ -23,20 +23,8 @@ type CheckpointDialog interface {
 	layout.Modal
 }
 
-// CheckpointInfo represents a checkpoint with its metadata
-type CheckpointInfo struct {
-	ID          string    `json:"id"`
-	SessionID   string    `json:"sessionID"`
-	MessageID   string    `json:"messageID"`
-	CommitHash  string    `json:"commitHash"`
-	Branch      string    `json:"branch"`
-	Message     string    `json:"message"`
-	Files       []string  `json:"files"`
-	ProjectPath string    `json:"projectPath"`
-	Time        struct {
-		Created int64 `json:"created"`
-	} `json:"time"`
-}
+// CheckpointInfo is an alias for the client checkpoint type
+type CheckpointInfo = client.CheckpointInfo
 
 // checkpointItem is a custom list item for checkpoints
 type checkpointItem struct {
@@ -53,7 +41,8 @@ func (c checkpointItem) Render(selected bool, width int) string {
 		text = "Press again to confirm restore"
 	} else {
 		// Format: "2h ago: Editing main.go (15 files)"
-		created := time.Unix(c.checkpoint.Time.Created/1000, 0)
+		// Time.Created is in seconds as float64
+		created := time.Unix(int64(c.checkpoint.Time.Created), 0)
 		ago := time.Since(created)
 		var timeStr string
 		if ago < time.Minute {
@@ -204,7 +193,8 @@ func (c *checkpointDialog) createListItems() []checkpointItem {
 
 func (c *checkpointDialog) restoreCheckpoint(checkpoint CheckpointInfo) tea.Cmd {
 	return func() tea.Msg {
-		response, err := c.app.Client.PostCheckpointRestoreWithResponse(
+		response, err := client.PostCheckpointRestoreWithResponse(
+			c.app.Client,
 			context.Background(),
 			client.PostCheckpointRestoreJSONRequestBody{
 				CheckpointID: checkpoint.ID,
@@ -213,7 +203,7 @@ func (c *checkpointDialog) restoreCheckpoint(checkpoint CheckpointInfo) tea.Cmd 
 		if err != nil {
 			return toast.NewErrorToast("Failed to restore checkpoint: " + err.Error())
 		}
-		if response.StatusCode() != 200 {
+		if response.StatusCode != 200 {
 			return toast.NewErrorToast("Failed to restore checkpoint")
 		}
 		
@@ -226,35 +216,18 @@ func (c *checkpointDialog) restoreCheckpoint(checkpoint CheckpointInfo) tea.Cmd 
 // NewCheckpointDialog creates a new checkpoint management dialog
 func NewCheckpointDialog(app *app.App) CheckpointDialog {
 	// Fetch checkpoints
-	response, err := app.Client.PostCheckpointListWithResponse(
+	response, err := client.PostCheckpointListWithResponse(
+		app.Client,
 		context.Background(),
 		client.PostCheckpointListJSONRequestBody{
-			SessionID: &app.Session.Id,
+			SessionID: &app.Session.ID,
 		},
 	)
 	
 	var checkpoints []CheckpointInfo
-	if err == nil && response.StatusCode() == 200 && response.JSON200 != nil {
-		// Convert the response to our CheckpointInfo type
-		for _, cp := range *response.JSON200 {
-			checkpoint := CheckpointInfo{
-				ID:          cp.Id,
-				SessionID:   cp.SessionID,
-				MessageID:   cp.MessageID,
-				CommitHash:  cp.CommitHash,
-				Branch:      cp.Branch,
-				Message:     cp.Message,
-				ProjectPath: cp.ProjectPath,
-			}
-			
-			// Set time
-			checkpoint.Time.Created = int64(cp.Time.Created)
-			
-			// Copy files
-			checkpoint.Files = cp.Files
-			
-			checkpoints = append(checkpoints, checkpoint)
-		}
+	if err == nil && response.StatusCode == 200 && response.JSON200 != nil {
+		// Use the checkpoints directly from the response
+		checkpoints = *response.JSON200
 	}
 
 	modalTitle := "Checkpoints"
