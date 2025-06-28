@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/v2/viewport"
 	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/muesli/reflow/wordwrap"
 
 	"github.com/sst/opencode/internal/layout"
 	"github.com/sst/opencode/internal/styles"
@@ -30,14 +31,35 @@ func NewPlanApprovalDialogCmp(plan string) PlanApprovalDialogCmp {
 		viewport.WithHeight(20),
 	)
 
-	// Set the content immediately
-	vp.SetContent(plan)
+	// Set the content immediately with wrapping
+	wrappedContent := wrapContent(plan, 76) // Initial width minus some margin
+	vp.SetContent(wrappedContent)
 
 	return PlanApprovalDialogCmp{
 		selected: 0,
 		viewport: vp,
 		plan:     plan,
 	}
+}
+
+// wrapContent wraps the content to fit within the given width
+func wrapContent(content string, width int) string {
+	lines := strings.Split(content, "\n")
+	var wrapped []string
+
+	for _, line := range lines {
+		// Preserve empty lines
+		if strings.TrimSpace(line) == "" {
+			wrapped = append(wrapped, line)
+			continue
+		}
+
+		// Wrap long lines
+		wrappedLine := wordwrap.String(line, width)
+		wrapped = append(wrapped, wrappedLine)
+	}
+
+	return strings.Join(wrapped, "\n")
 }
 
 // Init implements tea.Model.
@@ -78,11 +100,11 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Calculate available space for the dialog
 		// Leave some margin for the border and padding
 		marginX := 4 // 2 chars on each side
-		marginY := 2 // 1 line on top and bottom
+		marginY := 4 // 2 lines on top and bottom for safety
 
-		// Calculate dialog dimensions (70% of screen with max width)
-		dialogWidth := int(float64(m.width) * 0.7)
-		maxWidth := 100
+		// Calculate dialog dimensions (85% of screen with max width)
+		dialogWidth := int(float64(m.width) * 0.85)
+		maxWidth := 140
 		if dialogWidth > maxWidth {
 			dialogWidth = maxWidth
 		}
@@ -97,19 +119,31 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		borderHeight := 2 // Top and bottom borders
 		paddingX := 6     // Padding inside border (2 + 2 for border + 2 for padding)
 
+		// Calculate maximum safe height for the dialog
+		maxDialogHeight := m.height - marginY
+		availableHeight := maxDialogHeight - headerHeight - footerHeight - borderHeight
+
+		// Set viewport height with bounds checking
+		viewportHeight := availableHeight
+		maxViewportHeight := 30 // Maximum reasonable height for readability
+		if viewportHeight > maxViewportHeight {
+			viewportHeight = maxViewportHeight
+		}
+
 		viewportWidth := dialogWidth - paddingX
-		viewportHeight := m.height - headerHeight - footerHeight - borderHeight - marginY
 
 		// Ensure minimum sizes
 		viewportWidth = max(viewportWidth, 40)
-		viewportHeight = max(viewportHeight, 10)
+		viewportHeight = max(viewportHeight, 5)
 
 		// Update viewport
 		m.viewport = viewport.New(
 			viewport.WithWidth(viewportWidth),
 			viewport.WithHeight(viewportHeight),
 		)
-		m.viewport.SetContent(m.plan)
+		// Wrap content to fit viewport width
+		wrappedContent := wrapContent(m.plan, viewportWidth-4) // Leave some margin
+		m.viewport.SetContent(wrappedContent)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -137,6 +171,7 @@ func (m PlanApprovalDialogCmp) View() string {
 	// Viewport with plan content - add some padding for readability
 	planView := baseStyle.
 		Width(viewportWidth).
+		MaxWidth(viewportWidth).
 		Padding(0, 2).
 		Render(m.viewport.View())
 
@@ -259,15 +294,6 @@ func (m PlanApprovalDialogCmp) Render(background string) string {
 	// Get the dialog view
 	dialogView := m.View()
 
-	// Center the dialog using lipgloss.Place
-	centeredDialog := lipgloss.Place(
-		m.width,
-		m.height,
-		lipgloss.Center,
-		lipgloss.Center,
-		dialogView,
-	)
-
 	// Create overlay with the background dimmed
 	dimmedBg := styles.NewStyle().
 		Width(m.width).
@@ -276,8 +302,36 @@ func (m PlanApprovalDialogCmp) Render(background string) string {
 		Foreground(t.TextMuted()).
 		Render(background)
 
-	// Place the centered dialog on top of the dimmed background
-	return layout.PlaceOverlay(0, 0, centeredDialog, dimmedBg)
+	// Calculate position for centering
+	bgHeight := lipgloss.Height(dimmedBg)
+	bgWidth := lipgloss.Width(dimmedBg)
+	dialogHeight := lipgloss.Height(dialogView)
+	dialogWidth := lipgloss.Width(dialogView)
+
+	// Calculate centered position
+	row := (bgHeight - dialogHeight) / 2
+	col := (bgWidth - dialogWidth) / 2
+
+	// Ensure we don't go negative or exceed bounds
+	if row < 0 {
+		row = 0
+	}
+	if col < 0 {
+		col = 0
+	}
+
+	// Ensure dialog fits within terminal with margin
+	marginTop := 2
+	marginBottom := 2
+	if row < marginTop {
+		row = marginTop
+	}
+	if row+dialogHeight > bgHeight-marginBottom {
+		row = max(marginTop, bgHeight-dialogHeight-marginBottom)
+	}
+
+	// Place the dialog centered on the dimmed background
+	return layout.PlaceOverlay(col, row, dialogView, dimmedBg)
 }
 
 // Close returns a command to close the dialog.
