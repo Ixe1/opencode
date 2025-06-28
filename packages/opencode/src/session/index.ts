@@ -72,14 +72,18 @@ export namespace Session {
         .optional(),
     })
     .openapi({
-      ref: "session.info",
+      ref: "Session",
     })
   export type Info = z.output<typeof Info>
 
-  export const ShareInfo = z.object({
-    secret: z.string(),
-    url: z.string(),
-  })
+  export const ShareInfo = z
+    .object({
+      secret: z.string(),
+      url: z.string(),
+    })
+    .openapi({
+      ref: "SessionShare",
+    })
   export type ShareInfo = z.output<typeof ShareInfo>
 
   export const Event = {
@@ -431,7 +435,7 @@ export namespace Session {
     sessionID: string
     providerID: string
     modelID: string
-    parts: Message.Part[]
+    parts: Message.MessagePart[]
     system?: string[]
     tools?: Tool.Info[]
   }) {
@@ -1395,7 +1399,7 @@ function toUIMessage(msg: Message.Info): UIMessage {
   throw new Error("not implemented")
 }
 
-function toParts(parts: Message.Part[]): UIMessage["parts"] {
+function toParts(parts: Message.MessagePart[]): UIMessage["parts"] {
   const result: UIMessage["parts"] = []
   for (const part of parts) {
     switch (part.type) {
