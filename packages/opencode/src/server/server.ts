@@ -511,6 +511,53 @@ export namespace Server {
         },
       )
       .post(
+        "/session_approve_plan",
+        describeRoute({
+          description: "Approve a plan and switch to implementation mode",
+          responses: {
+            200: {
+              description: "Successfully approved plan",
+              content: {
+                "application/json": {
+                  schema: resolver(z.object({
+                    session: Session.Info,
+                    message: Message.Info,
+                  })),
+                },
+              },
+            },
+          },
+        }),
+        zValidator(
+          "json",
+          z.object({
+            sessionID: z.string(),
+            planContent: z.string(),
+          }),
+        ),
+        async (c) => {
+          const body = c.req.valid("json")
+          
+          // Update session mode to normal
+          const session = await Session.setMode(body.sessionID, "normal")
+          
+          // Update last plan status
+          if (session) {
+            await Session.updateLastPlan(
+              body.sessionID,
+              body.planContent,
+              "approved",
+            )
+          }
+          
+          return c.json({
+            session,
+            modeChanged: true,
+            newMode: "normal",
+          })
+        },
+      )
+      .post(
         "/session_chat",
         describeRoute({
           description: "Chat with a model",

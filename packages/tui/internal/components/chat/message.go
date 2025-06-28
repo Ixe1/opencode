@@ -129,7 +129,7 @@ func renderContentBlock(content string, options ...renderingOption) string {
 		option(renderer)
 	}
 
-	style := styles.NewStyle().Foreground(t.TextMuted()).Background(t.BackgroundPanel()).
+	style := styles.NewStyle().Foreground(t.Text()).
 		// MarginTop(renderer.marginTop).
 		// MarginBottom(renderer.marginBottom).
 		PaddingTop(renderer.paddingTop).
@@ -229,16 +229,18 @@ func renderText(message client.MessageInfo, text string, author string) string {
 	minWidth := max(markdownWidth, (width-4)/2)
 	messageStyle := styles.NewStyle().
 		Width(minWidth).
-		Background(t.BackgroundPanel()).
 		Foreground(t.Text())
 	if textWidth < minWidth {
 		messageStyle = messageStyle.AlignHorizontal(lipgloss.Right)
 	}
 	content := messageStyle.Render(text)
 	if message.Role == client.Assistant {
-		content = toMarkdown(text, markdownWidth, t.BackgroundPanel())
+		content = toMarkdown(text, markdownWidth, t.Background())
 	}
 	content = strings.Join([]string{content, info}, "\n")
+
+	// Check if this is a clarification question
+	isClarification := message.Metadata.ClarificationQuestion != nil && *message.Metadata.ClarificationQuestion
 
 	switch message.Role {
 	case client.User:
@@ -247,9 +249,14 @@ func renderText(message client.MessageInfo, text string, author string) string {
 			WithBorderColor(t.Secondary()),
 		)
 	case client.Assistant:
+		borderColor := t.Accent()
+		if isClarification {
+			// Use a different color for clarification questions
+			borderColor = t.Warning()
+		}
 		return renderContentBlock(content,
 			WithAlign(lipgloss.Left),
-			WithBorderColor(t.Accent()),
+			WithBorderColor(borderColor),
 		)
 	}
 	return ""
@@ -431,7 +438,7 @@ func renderToolInvocation(
 			command := toolArgsMap["command"].(string)
 			stdout := stdout.(string)
 			body = fmt.Sprintf("```console\n> %s\n%s```", command, stdout)
-			body = toMarkdown(body, innerWidth, t.BackgroundPanel())
+			body = toMarkdown(body, innerWidth, t.Background())
 			body = renderContentBlock(body, WithFullWidth(), WithMarginBottom(1))
 		}
 	case "webfetch":
@@ -442,7 +449,7 @@ func renderToolInvocation(
 				body = *result
 				body = truncateHeight(body, 10)
 				if format == "html" || format == "markdown" {
-					body = toMarkdown(body, innerWidth, t.BackgroundPanel())
+					body = toMarkdown(body, innerWidth, t.Background())
 				}
 				body = renderContentBlock(body, WithFullWidth(), WithMarginBottom(1))
 			}
@@ -464,7 +471,7 @@ func renderToolInvocation(
 					body += fmt.Sprintf("- [ ] %s\n", content)
 				}
 			}
-			body = toMarkdown(body, innerWidth, t.BackgroundPanel())
+			body = toMarkdown(body, innerWidth, t.Background())
 			body = renderContentBlock(body, WithFullWidth(), WithMarginBottom(1))
 		}
 	case "task":
@@ -507,7 +514,7 @@ func renderToolInvocation(
 		title = "PLAN"
 		if result != nil && finished {
 			body = *result
-			body = toMarkdown(body, innerWidth, t.BackgroundPanel())
+			body = toMarkdown(body, innerWidth, t.Background())
 			body = renderContentBlock(body, WithFullWidth(), WithMarginBottom(1))
 		}
 
@@ -620,7 +627,7 @@ func renderFile(filename string, content string, options ...fileRenderingOption)
 		content = truncateHeight(content, renderer.height)
 	}
 	content = fmt.Sprintf("```%s\n%s\n```", extension(renderer.filename), content)
-	content = toMarkdown(content, width, t.BackgroundPanel())
+	content = toMarkdown(content, width, t.Background())
 
 	return renderContentBlock(content, WithFullWidth(), WithMarginBottom(1))
 }

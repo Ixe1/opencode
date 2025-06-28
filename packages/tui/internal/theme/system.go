@@ -21,13 +21,19 @@ type SystemTheme struct {
 func NewSystemTheme(terminalBg color.Color, isDark bool) *SystemTheme {
 	// Validate the isDark flag against the actual background color
 	r, g, b, _ := terminalBg.RGBA()
-	bgR := float64(r >> 8)
-	bgG := float64(g >> 8)
-	bgB := float64(b >> 8)
-	luminance := 0.299*bgR + 0.587*bgG + 0.114*bgB
+	// RGBA returns values in 16-bit, normalize to 0-255
+	bgR := float64(r) / 257.0
+	bgG := float64(g) / 257.0
+	bgB := float64(b) / 257.0
 
-	// If the detected darkness doesn't match the luminance, correct it
-	actuallyDark := luminance < 128
+	// Calculate relative luminance using the standard formula
+	// This gives a more accurate perception of brightness
+	luminance := 0.2126*bgR + 0.7152*bgG + 0.0722*bgB
+
+	// Use a threshold that better matches human perception
+	// 127.5 is the midpoint, but we use a slightly lower threshold
+	// because dark themes are more common and we want to err on the side of dark
+	actuallyDark := luminance < 110
 	if isDark != actuallyDark {
 		// Terminal background detection might be wrong
 		isDark = actuallyDark
@@ -215,11 +221,13 @@ func (t *SystemTheme) generateGrayScale() map[int]compat.AdaptiveColor {
 	grays := make(map[int]compat.AdaptiveColor)
 
 	r, g, b, _ := t.terminalBg.RGBA()
-	bgR := float64(r >> 8)
-	bgG := float64(g >> 8)
-	bgB := float64(b >> 8)
+	// RGBA returns values in 16-bit, normalize to 0-255
+	bgR := float64(r) / 257.0
+	bgG := float64(g) / 257.0
+	bgB := float64(b) / 257.0
 
-	luminance := 0.299*bgR + 0.587*bgG + 0.114*bgB
+	// Use the same luminance calculation as in NewSystemTheme
+	luminance := 0.2126*bgR + 0.7152*bgG + 0.0722*bgB
 
 	for i := 1; i <= 12; i++ {
 		var stepColor string

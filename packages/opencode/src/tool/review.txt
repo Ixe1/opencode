@@ -1,0 +1,11 @@
+This tool is used during Code Review Mode to handle interactive review actions.
+
+When the user is in review mode, this tool allows them to:
+- Start a code review of uncommitted changes
+- Fix issues automatically
+- Skip issues
+- Modify suggested fixes
+- Get explanations about issues
+- Navigate between issues
+
+The tool should only be available when the session is in "review" mode.

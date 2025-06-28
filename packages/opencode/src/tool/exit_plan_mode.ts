@@ -3,8 +3,8 @@ import { Tool } from "./tool"
 import { Session } from "../session"
 import { Message } from "../session/message"
 
-export const PlanApprovedTool = Tool.define({
-  id: "planapproved",
+export const ExitPlanModeTool = Tool.define({
+  id: "exit_plan_mode",
   description:
     "Use this tool when the user has approved a plan. This will switch the session from planning mode to code mode and prepare for implementation.",
   parameters: z.object({

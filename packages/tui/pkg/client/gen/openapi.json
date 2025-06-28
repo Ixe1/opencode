@@ -473,7 +473,8 @@
                     "type": "string",
                     "enum": [
                       "normal",
-                      "planning"
+                      "planning",
+                      "review"
                     ]
                   }
                 },
@@ -524,6 +525,58 @@
                 "required": [
                   "sessionID",
                   "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session_approve_plan": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successfully approved plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "$ref": "#/components/schemas/session.info"
+                    },
+                    "message": {
+                      "$ref": "#/components/schemas/Message.Info"
+                    }
+                  },
+                  "required": [
+                    "session",
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postSession_approve_plan",
+        "parameters": [],
+        "description": "Approve a plan and switch to implementation mode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "planContent": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sessionID",
+                  "planContent"
                 ]
               }
             }
@@ -832,21 +885,6 @@
       "Event": {
         "oneOf": [
           {
-            "$ref": "#/components/schemas/Event.lsp.client.diagnostics"
-          },
-          {
-            "$ref": "#/components/schemas/Event.permission.updated"
-          },
-          {
-            "$ref": "#/components/schemas/Event.checkpoint.created"
-          },
-          {
-            "$ref": "#/components/schemas/Event.checkpoint.restored"
-          },
-          {
-            "$ref": "#/components/schemas/Event.file.edited"
-          },
-          {
             "$ref": "#/components/schemas/Event.storage.write"
           },
           {
@@ -872,16 +910,26 @@
           },
           {
             "$ref": "#/components/schemas/Event.session.mode.changed"
+          },
+          {
+            "$ref": "#/components/schemas/Event.lsp.client.diagnostics"
+          },
+          {
+            "$ref": "#/components/schemas/Event.permission.updated"
+          },
+          {
+            "$ref": "#/components/schemas/Event.checkpoint.created"
+          },
+          {
+            "$ref": "#/components/schemas/Event.checkpoint.restored"
+          },
+          {
+            "$ref": "#/components/schemas/Event.file.edited"
           }
         ],
         "discriminator": {
           "propertyName": "type",
           "mapping": {
-            "lsp.client.diagnostics": "#/components/schemas/Event.lsp.client.diagnostics",
-            "permission.updated": "#/components/schemas/Event.permission.updated",
-            "checkpoint.created": "#/components/schemas/Event.checkpoint.created",
-            "checkpoint.restored": "#/components/schemas/Event.checkpoint.restored",
-            "file.edited": "#/components/schemas/Event.file.edited",
             "storage.write": "#/components/schemas/Event.storage.write",
             "installation.updated": "#/components/schemas/Event.installation.updated",
             "message.updated": "#/components/schemas/Event.message.updated",
@@ -890,279 +938,14 @@
             "session.deleted": "#/components/schemas/Event.session.deleted",
             "session.idle": "#/components/schemas/Event.session.idle",
             "session.error": "#/components/schemas/Event.session.error",
-            "session.mode.changed": "#/components/schemas/Event.session.mode.changed"
+            "session.mode.changed": "#/components/schemas/Event.session.mode.changed",
+            "lsp.client.diagnostics": "#/components/schemas/Event.lsp.client.diagnostics",
+            "permission.updated": "#/components/schemas/Event.permission.updated",
+            "checkpoint.created": "#/components/schemas/Event.checkpoint.created",
+            "checkpoint.restored": "#/components/schemas/Event.checkpoint.restored",
+            "file.edited": "#/components/schemas/Event.file.edited"
           }
         }
-      },
-      "Event.lsp.client.diagnostics": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "lsp.client.diagnostics"
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "serverID": {
-                "type": "string"
-              },
-              "path": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "serverID",
-              "path"
-            ]
-          }
-        },
-        "required": [
-          "type",
-          "properties"
-        ]
-      },
-      "Event.permission.updated": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "permission.updated"
-          },
-          "properties": {
-            "$ref": "#/components/schemas/permission.info"
-          }
-        },
-        "required": [
-          "type",
-          "properties"
-        ]
-      },
-      "permission.info": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "sessionID": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object",
-            "additionalProperties": {}
-          },
-          "time": {
-            "type": "object",
-            "properties": {
-              "created": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "created"
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "sessionID",
-          "title",
-          "metadata",
-          "time"
-        ]
-      },
-      "Event.checkpoint.created": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "checkpoint.created"
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "checkpoint": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "sessionID": {
-                    "type": "string",
-                    "pattern": "^ses"
-                  },
-                  "messageID": {
-                    "type": "string",
-                    "pattern": "^msg"
-                  },
-                  "commitHash": {
-                    "type": "string"
-                  },
-                  "branch": {
-                    "type": "string"
-                  },
-                  "message": {
-                    "type": "string"
-                  },
-                  "files": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "projectPath": {
-                    "type": "string"
-                  },
-                  "shadowRepoPath": {
-                    "type": "string"
-                  },
-                  "conversationSnapshot": {},
-                  "toolCall": {},
-                  "time": {
-                    "type": "object",
-                    "properties": {
-                      "created": {
-                        "type": "number"
-                      }
-                    },
-                    "required": [
-                      "created"
-                    ]
-                  }
-                },
-                "required": [
-                  "id",
-                  "sessionID",
-                  "messageID",
-                  "commitHash",
-                  "branch",
-                  "message",
-                  "files",
-                  "projectPath",
-                  "shadowRepoPath",
-                  "time"
-                ]
-              }
-            },
-            "required": [
-              "checkpoint"
-            ]
-          }
-        },
-        "required": [
-          "type",
-          "properties"
-        ]
-      },
-      "Event.checkpoint.restored": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "checkpoint.restored"
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "checkpoint": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "sessionID": {
-                    "type": "string",
-                    "pattern": "^ses"
-                  },
-                  "messageID": {
-                    "type": "string",
-                    "pattern": "^msg"
-                  },
-                  "commitHash": {
-                    "type": "string"
-                  },
-                  "branch": {
-                    "type": "string"
-                  },
-                  "message": {
-                    "type": "string"
-                  },
-                  "files": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "projectPath": {
-                    "type": "string"
-                  },
-                  "shadowRepoPath": {
-                    "type": "string"
-                  },
-                  "conversationSnapshot": {},
-                  "toolCall": {},
-                  "time": {
-                    "type": "object",
-                    "properties": {
-                      "created": {
-                        "type": "number"
-                      }
-                    },
-                    "required": [
-                      "created"
-                    ]
-                  }
-                },
-                "required": [
-                  "id",
-                  "sessionID",
-                  "messageID",
-                  "commitHash",
-                  "branch",
-                  "message",
-                  "files",
-                  "projectPath",
-                  "shadowRepoPath",
-                  "time"
-                ]
-              }
-            },
-            "required": [
-              "checkpoint"
-            ]
-          }
-        },
-        "required": [
-          "type",
-          "properties"
-        ]
-      },
-      "Event.file.edited": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "file.edited"
-          },
-          "properties": {
-            "type": "object",
-            "properties": {
-              "file": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "file"
-            ]
-          }
-        },
-        "required": [
-          "type",
-          "properties"
-        ]
       },
       "Event.storage.write": {
         "type": "object",
@@ -1663,6 +1446,12 @@
               "cost",
               "tokens"
             ]
+          },
+          "planDetected": {
+            "type": "boolean"
+          },
+          "clarificationQuestion": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -2023,6 +1812,276 @@
             "required": [
               "sessionID",
               "mode"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.lsp.client.diagnostics": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "lsp.client.diagnostics"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "serverID": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "serverID",
+              "path"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.permission.updated": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "permission.updated"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/permission.info"
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "permission.info": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "time": {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "created"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sessionID",
+          "title",
+          "metadata",
+          "time"
+        ]
+      },
+      "Event.checkpoint.created": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "checkpoint.created"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "checkpoint": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "sessionID": {
+                    "type": "string",
+                    "pattern": "^ses"
+                  },
+                  "messageID": {
+                    "type": "string",
+                    "pattern": "^msg"
+                  },
+                  "commitHash": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "projectPath": {
+                    "type": "string"
+                  },
+                  "shadowRepoPath": {
+                    "type": "string"
+                  },
+                  "conversationSnapshot": {},
+                  "toolCall": {},
+                  "time": {
+                    "type": "object",
+                    "properties": {
+                      "created": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "created"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "sessionID",
+                  "messageID",
+                  "commitHash",
+                  "branch",
+                  "message",
+                  "files",
+                  "projectPath",
+                  "shadowRepoPath",
+                  "time"
+                ]
+              }
+            },
+            "required": [
+              "checkpoint"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.checkpoint.restored": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "checkpoint.restored"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "checkpoint": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "sessionID": {
+                    "type": "string",
+                    "pattern": "^ses"
+                  },
+                  "messageID": {
+                    "type": "string",
+                    "pattern": "^msg"
+                  },
+                  "commitHash": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "projectPath": {
+                    "type": "string"
+                  },
+                  "shadowRepoPath": {
+                    "type": "string"
+                  },
+                  "conversationSnapshot": {},
+                  "toolCall": {},
+                  "time": {
+                    "type": "object",
+                    "properties": {
+                      "created": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "created"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "sessionID",
+                  "messageID",
+                  "commitHash",
+                  "branch",
+                  "message",
+                  "files",
+                  "projectPath",
+                  "shadowRepoPath",
+                  "time"
+                ]
+              }
+            },
+            "required": [
+              "checkpoint"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "properties"
+        ]
+      },
+      "Event.file.edited": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "file.edited"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "file"
             ]
           }
         },

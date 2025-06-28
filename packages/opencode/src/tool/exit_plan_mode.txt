@@ -1,4 +1,4 @@
-Use this tool when the user has approved a plan that was presented using the PlanDelivery tool.
+Use this tool when the user has approved a plan.
 
 This tool will:
 1. Switch the session from planning mode to normal mode

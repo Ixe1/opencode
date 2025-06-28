@@ -158,7 +158,7 @@ func (m *messagesComponent) renderView() {
 			// 	messages = append(messages, "")
 			case client.MessagePartText:
 				text := part.(client.MessagePartText)
-				key := m.cache.GenerateKey(message.Id, text.Text, layout.Current.Viewport.Width)
+				key := m.cache.GenerateKey(message.Id, text.Text, layout.Current.Viewport.Width, theme.CurrentThemeName(), styles.IsDarkMode())
 				content, cached = m.cache.Get(key)
 				if !cached {
 					content = renderText(message, text.Text, author)
@@ -192,6 +192,8 @@ func (m *messagesComponent) renderView() {
 						toolCall.ToolCallId,
 						m.showToolDetails,
 						layout.Current.Viewport.Width,
+						theme.CurrentThemeName(),
+						styles.IsDarkMode(),
 					)
 					content, cached = m.cache.Get(key)
 					if !cached {

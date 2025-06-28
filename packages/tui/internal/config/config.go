@@ -11,9 +11,10 @@ import (
 )
 
 type State struct {
-	Theme    string `toml:"theme"`
-	Provider string `toml:"provider"`
-	Model    string `toml:"model"`
+	Theme         string `toml:"theme"`
+	Provider      string `toml:"provider"`
+	Model         string `toml:"model"`
+	ForceDarkMode *bool  `toml:"force_dark_mode,omitempty"`
 }
 
 func NewState() *State {

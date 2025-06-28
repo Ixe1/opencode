@@ -17,7 +17,7 @@ import { ReadTool } from "../tool/read"
 import { WriteTool } from "../tool/write"
 import { TodoWriteTool, TodoReadTool } from "../tool/todo"
 import { WebFetchTool } from "../tool/webfetch"
-import { PlanApprovedTool } from "../tool/planapproved"
+import { ExitPlanModeTool } from "../tool/exit_plan_mode"
 import { ReviewTool } from "../tool/review"
 import type { Tool } from "../tool/tool"
 import { AuthAnthropic } from "../auth/anthropic"
@@ -412,7 +412,7 @@ export namespace Provider {
     TodoWriteTool,
     // TaskTool,
     TodoReadTool,
-    PlanApprovedTool,
+    ExitPlanModeTool,
   ]
 
   // Removed separate mode tool lists - now using all tools in all modes

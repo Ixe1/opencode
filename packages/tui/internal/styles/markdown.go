@@ -44,7 +44,7 @@ func generateMarkdownStyleConfig(backgroundColor compat.AdaptiveColor) ansi.Styl
 		if err == nil {
 			_, _, l := c.Hsl()
 			// If luminance suggests inverted detection, don't set background
-			if (Terminal.BackgroundIsDark && l > 0.9) || (!Terminal.BackgroundIsDark && l < 0.1) {
+			if (IsDarkMode() && l > 0.9) || (!IsDarkMode() && l < 0.1) {
 				background = nil
 			}
 
@@ -336,7 +336,7 @@ func generateMarkdownStyleConfig(backgroundColor compat.AdaptiveColor) ansi.Styl
 // AdaptiveColorToString converts a compat.AdaptiveColor to the appropriate
 // hex color string based on the current terminal background
 func AdaptiveColorToString(color compat.AdaptiveColor) *string {
-	if Terminal.BackgroundIsDark {
+	if IsDarkMode() {
 		if _, ok := color.Dark.(lipgloss.NoColor); ok {
 			// Return empty string instead of nil to prevent glamour from defaulting to white
 			return stringPtr("")

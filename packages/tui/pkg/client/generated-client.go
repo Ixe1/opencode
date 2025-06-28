@@ -48,6 +48,7 @@ const (
 const (
 	Normal   PostSessionSetModeJSONBodyMode = "normal"
 	Planning PostSessionSetModeJSONBodyMode = "planning"
+	Review   PostSessionSetModeJSONBodyMode = "review"
 )
 
 // Defines values for PostSessionUpdatePlanStatusJSONBodyStatus.
@@ -457,9 +458,12 @@ type MessageMetadata struct {
 			Reasoning float32 `json:"reasoning"`
 		} `json:"tokens"`
 	} `json:"assistant,omitempty"`
-	Error     *MessageMetadata_Error `json:"error,omitempty"`
-	SessionID string                 `json:"sessionID"`
-	Time      struct {
+	ClarificationQuestion *bool                  `json:"clarificationQuestion,omitempty"`
+	Error                 *MessageMetadata_Error `json:"error,omitempty"`
+	PlanContent           *string                `json:"planContent,omitempty"`
+	PlanDetected          *bool                  `json:"planDetected,omitempty"`
+	SessionID             string                 `json:"sessionID"`
+	Time                  struct {
 		Completed *float32 `json:"completed,omitempty"`
 		Created   float32  `json:"created"`
 	} `json:"time"`
@@ -679,6 +683,12 @@ type PostSessionAbortJSONBody struct {
 	SessionID string `json:"sessionID"`
 }
 
+// PostSessionApprovePlanJSONBody defines parameters for PostSessionApprovePlan.
+type PostSessionApprovePlanJSONBody struct {
+	PlanContent string `json:"planContent"`
+	SessionID   string `json:"sessionID"`
+}
+
 // PostSessionChatJSONBody defines parameters for PostSessionChat.
 type PostSessionChatJSONBody struct {
 	ModelID    string        `json:"modelID"`
@@ -750,6 +760,9 @@ type PostFileSearchJSONRequestBody PostFileSearchJSONBody
 
 // PostSessionAbortJSONRequestBody defines body for PostSessionAbort for application/json ContentType.
 type PostSessionAbortJSONRequestBody PostSessionAbortJSONBody
+
+// PostSessionApprovePlanJSONRequestBody defines body for PostSessionApprovePlan for application/json ContentType.
+type PostSessionApprovePlanJSONRequestBody PostSessionApprovePlanJSONBody
 
 // PostSessionChatJSONRequestBody defines body for PostSessionChat for application/json ContentType.
 type PostSessionChatJSONRequestBody PostSessionChatJSONBody
@@ -943,146 +956,6 @@ func (t ConfigInfo_Mcp_AdditionalProperties) MarshalJSON() ([]byte, error) {
 
 func (t *ConfigInfo_Mcp_AdditionalProperties) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsEventLspClientDiagnostics returns the union data inside the Event as a EventLspClientDiagnostics
-func (t Event) AsEventLspClientDiagnostics() (EventLspClientDiagnostics, error) {
-	var body EventLspClientDiagnostics
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromEventLspClientDiagnostics overwrites any union data inside the Event as the provided EventLspClientDiagnostics
-func (t *Event) FromEventLspClientDiagnostics(v EventLspClientDiagnostics) error {
-	v.Type = "lsp.client.diagnostics"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeEventLspClientDiagnostics performs a merge with any union data inside the Event, using the provided EventLspClientDiagnostics
-func (t *Event) MergeEventLspClientDiagnostics(v EventLspClientDiagnostics) error {
-	v.Type = "lsp.client.diagnostics"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsEventPermissionUpdated returns the union data inside the Event as a EventPermissionUpdated
-func (t Event) AsEventPermissionUpdated() (EventPermissionUpdated, error) {
-	var body EventPermissionUpdated
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromEventPermissionUpdated overwrites any union data inside the Event as the provided EventPermissionUpdated
-func (t *Event) FromEventPermissionUpdated(v EventPermissionUpdated) error {
-	v.Type = "permission.updated"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeEventPermissionUpdated performs a merge with any union data inside the Event, using the provided EventPermissionUpdated
-func (t *Event) MergeEventPermissionUpdated(v EventPermissionUpdated) error {
-	v.Type = "permission.updated"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsEventCheckpointCreated returns the union data inside the Event as a EventCheckpointCreated
-func (t Event) AsEventCheckpointCreated() (EventCheckpointCreated, error) {
-	var body EventCheckpointCreated
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromEventCheckpointCreated overwrites any union data inside the Event as the provided EventCheckpointCreated
-func (t *Event) FromEventCheckpointCreated(v EventCheckpointCreated) error {
-	v.Type = "checkpoint.created"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeEventCheckpointCreated performs a merge with any union data inside the Event, using the provided EventCheckpointCreated
-func (t *Event) MergeEventCheckpointCreated(v EventCheckpointCreated) error {
-	v.Type = "checkpoint.created"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsEventCheckpointRestored returns the union data inside the Event as a EventCheckpointRestored
-func (t Event) AsEventCheckpointRestored() (EventCheckpointRestored, error) {
-	var body EventCheckpointRestored
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromEventCheckpointRestored overwrites any union data inside the Event as the provided EventCheckpointRestored
-func (t *Event) FromEventCheckpointRestored(v EventCheckpointRestored) error {
-	v.Type = "checkpoint.restored"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeEventCheckpointRestored performs a merge with any union data inside the Event, using the provided EventCheckpointRestored
-func (t *Event) MergeEventCheckpointRestored(v EventCheckpointRestored) error {
-	v.Type = "checkpoint.restored"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsEventFileEdited returns the union data inside the Event as a EventFileEdited
-func (t Event) AsEventFileEdited() (EventFileEdited, error) {
-	var body EventFileEdited
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromEventFileEdited overwrites any union data inside the Event as the provided EventFileEdited
-func (t *Event) FromEventFileEdited(v EventFileEdited) error {
-	v.Type = "file.edited"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeEventFileEdited performs a merge with any union data inside the Event, using the provided EventFileEdited
-func (t *Event) MergeEventFileEdited(v EventFileEdited) error {
-	v.Type = "file.edited"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
 	return err
 }
 
@@ -1328,6 +1201,146 @@ func (t *Event) FromEventSessionModeChanged(v EventSessionModeChanged) error {
 // MergeEventSessionModeChanged performs a merge with any union data inside the Event, using the provided EventSessionModeChanged
 func (t *Event) MergeEventSessionModeChanged(v EventSessionModeChanged) error {
 	v.Type = "session.mode.changed"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEventLspClientDiagnostics returns the union data inside the Event as a EventLspClientDiagnostics
+func (t Event) AsEventLspClientDiagnostics() (EventLspClientDiagnostics, error) {
+	var body EventLspClientDiagnostics
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventLspClientDiagnostics overwrites any union data inside the Event as the provided EventLspClientDiagnostics
+func (t *Event) FromEventLspClientDiagnostics(v EventLspClientDiagnostics) error {
+	v.Type = "lsp.client.diagnostics"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventLspClientDiagnostics performs a merge with any union data inside the Event, using the provided EventLspClientDiagnostics
+func (t *Event) MergeEventLspClientDiagnostics(v EventLspClientDiagnostics) error {
+	v.Type = "lsp.client.diagnostics"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEventPermissionUpdated returns the union data inside the Event as a EventPermissionUpdated
+func (t Event) AsEventPermissionUpdated() (EventPermissionUpdated, error) {
+	var body EventPermissionUpdated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventPermissionUpdated overwrites any union data inside the Event as the provided EventPermissionUpdated
+func (t *Event) FromEventPermissionUpdated(v EventPermissionUpdated) error {
+	v.Type = "permission.updated"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventPermissionUpdated performs a merge with any union data inside the Event, using the provided EventPermissionUpdated
+func (t *Event) MergeEventPermissionUpdated(v EventPermissionUpdated) error {
+	v.Type = "permission.updated"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEventCheckpointCreated returns the union data inside the Event as a EventCheckpointCreated
+func (t Event) AsEventCheckpointCreated() (EventCheckpointCreated, error) {
+	var body EventCheckpointCreated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventCheckpointCreated overwrites any union data inside the Event as the provided EventCheckpointCreated
+func (t *Event) FromEventCheckpointCreated(v EventCheckpointCreated) error {
+	v.Type = "checkpoint.created"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventCheckpointCreated performs a merge with any union data inside the Event, using the provided EventCheckpointCreated
+func (t *Event) MergeEventCheckpointCreated(v EventCheckpointCreated) error {
+	v.Type = "checkpoint.created"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEventCheckpointRestored returns the union data inside the Event as a EventCheckpointRestored
+func (t Event) AsEventCheckpointRestored() (EventCheckpointRestored, error) {
+	var body EventCheckpointRestored
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventCheckpointRestored overwrites any union data inside the Event as the provided EventCheckpointRestored
+func (t *Event) FromEventCheckpointRestored(v EventCheckpointRestored) error {
+	v.Type = "checkpoint.restored"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventCheckpointRestored performs a merge with any union data inside the Event, using the provided EventCheckpointRestored
+func (t *Event) MergeEventCheckpointRestored(v EventCheckpointRestored) error {
+	v.Type = "checkpoint.restored"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEventFileEdited returns the union data inside the Event as a EventFileEdited
+func (t Event) AsEventFileEdited() (EventFileEdited, error) {
+	var body EventFileEdited
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEventFileEdited overwrites any union data inside the Event as the provided EventFileEdited
+func (t *Event) FromEventFileEdited(v EventFileEdited) error {
+	v.Type = "file.edited"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEventFileEdited performs a merge with any union data inside the Event, using the provided EventFileEdited
+func (t *Event) MergeEventFileEdited(v EventFileEdited) error {
+	v.Type = "file.edited"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -2075,6 +2088,11 @@ type ClientInterface interface {
 
 	PostSessionAbort(ctx context.Context, body PostSessionAbortJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostSessionApprovePlanWithBody request with any body
+	PostSessionApprovePlanWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostSessionApprovePlan(ctx context.Context, body PostSessionApprovePlanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostSessionChatWithBody request with any body
 	PostSessionChatWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2297,6 +2315,30 @@ func (c *Client) PostSessionAbortWithBody(ctx context.Context, contentType strin
 
 func (c *Client) PostSessionAbort(ctx context.Context, body PostSessionAbortJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostSessionAbortRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostSessionApprovePlanWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSessionApprovePlanRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostSessionApprovePlan(ctx context.Context, body PostSessionApprovePlanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSessionApprovePlanRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2896,6 +2938,46 @@ func NewPostSessionAbortRequestWithBody(server string, contentType string, body 
 	return req, nil
 }
 
+// NewPostSessionApprovePlanRequest calls the generic PostSessionApprovePlan builder with application/json body
+func NewPostSessionApprovePlanRequest(server string, body PostSessionApprovePlanJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostSessionApprovePlanRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostSessionApprovePlanRequestWithBody generates requests for PostSessionApprovePlan with any type of body
+func NewPostSessionApprovePlanRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/session_approve_plan")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewPostSessionChatRequest calls the generic PostSessionChat builder with application/json body
 func NewPostSessionChatRequest(server string, body PostSessionChatJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -3394,6 +3476,11 @@ type ClientWithResponsesInterface interface {
 
 	PostSessionAbortWithResponse(ctx context.Context, body PostSessionAbortJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSessionAbortResponse, error)
 
+	// PostSessionApprovePlanWithBodyWithResponse request with any body
+	PostSessionApprovePlanWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionApprovePlanResponse, error)
+
+	PostSessionApprovePlanWithResponse(ctx context.Context, body PostSessionApprovePlanJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSessionApprovePlanResponse, error)
+
 	// PostSessionChatWithBodyWithResponse request with any body
 	PostSessionChatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionChatResponse, error)
 
@@ -3708,6 +3795,31 @@ func (r PostSessionAbortResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PostSessionAbortResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PostSessionApprovePlanResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message MessageInfo `json:"message"`
+		Session SessionInfo `json:"session"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PostSessionApprovePlanResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostSessionApprovePlanResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4086,6 +4198,23 @@ func (c *ClientWithResponses) PostSessionAbortWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParsePostSessionAbortResponse(rsp)
+}
+
+// PostSessionApprovePlanWithBodyWithResponse request with arbitrary body returning *PostSessionApprovePlanResponse
+func (c *ClientWithResponses) PostSessionApprovePlanWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSessionApprovePlanResponse, error) {
+	rsp, err := c.PostSessionApprovePlanWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSessionApprovePlanResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostSessionApprovePlanWithResponse(ctx context.Context, body PostSessionApprovePlanJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSessionApprovePlanResponse, error) {
+	rsp, err := c.PostSessionApprovePlan(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSessionApprovePlanResponse(rsp)
 }
 
 // PostSessionChatWithBodyWithResponse request with arbitrary body returning *PostSessionChatResponse
@@ -4567,6 +4696,35 @@ func ParsePostSessionAbortResponse(rsp *http.Response) (*PostSessionAbortRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest bool
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostSessionApprovePlanResponse parses an HTTP response from a PostSessionApprovePlanWithResponse call
+func ParsePostSessionApprovePlanResponse(rsp *http.Response) (*PostSessionApprovePlanResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostSessionApprovePlanResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message MessageInfo `json:"message"`
+			Session SessionInfo `json:"session"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

@@ -78,6 +78,7 @@ const (
 	SessionInterruptCommand     CommandName = "session_interrupt"
 	SessionCompactCommand       CommandName = "session_compact"
 	SessionModeToggleCommand    CommandName = "session_mode_toggle"
+	SessionStatsCommand         CommandName = "session_stats"
 	CheckpointListCommand       CommandName = "checkpoint_list"
 	ToolDetailsCommand          CommandName = "tool_details"
 	ModelListCommand            CommandName = "model_list"
@@ -175,6 +176,12 @@ func LoadFromConfig(config *client.ConfigInfo) CommandRegistry {
 			Description: "cycle mode (normal → planning → review)",
 			Keybindings: parseBindings("shift+tab"),
 			Trigger:     "mode",
+		},
+		{
+			Name:        SessionStatsCommand,
+			Description: "show session statistics",
+			Keybindings: parseBindings(""),
+			Trigger:     "stats",
 		},
 		{
 			Name:        CheckpointListCommand,

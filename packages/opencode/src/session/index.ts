@@ -334,7 +334,90 @@ export namespace Session {
     }
   }
 
+  function detectPlan(msg: Message.Info): boolean {
+    if (msg.role !== "assistant") return false
+    
+    // Check if message contains plan markers
+    const textContent = msg.parts
+      .filter(p => p.type === "text")
+      .map(p => p.text)
+      .join("\n")
+    
+    // Must have both start and end markers for a valid plan
+    const hasPlanStart = textContent.includes("## Plan:")
+    const hasPlanEnd = textContent.includes("Would you like me to proceed with this implementation?") ||
+                       textContent.includes("Would you like me to proceed?") ||
+                       textContent.includes("Do you want me to proceed with this plan?")
+    
+    return hasPlanStart && hasPlanEnd
+  }
+
+  function extractPlanContent(msg: Message.Info): string {
+    if (msg.role !== "assistant") return ""
+    
+    // Get full message content
+    const textContent = msg.parts
+      .filter(p => p.type === "text")
+      .map(p => p.text)
+      .join("\n")
+    
+    // Find plan start marker
+    const planStartIndex = textContent.indexOf("## Plan:")
+    if (planStartIndex === -1) return ""
+    
+    // Find plan end markers
+    const endMarkers = [
+      "Would you like me to proceed with this implementation?",
+      "Would you like me to proceed?",
+      "Do you want me to proceed with this plan?"
+    ]
+    
+    let planEndIndex = -1
+    for (const marker of endMarkers) {
+      const index = textContent.indexOf(marker, planStartIndex)
+      if (index !== -1) {
+        planEndIndex = index + marker.length
+        break
+      }
+    }
+    
+    if (planEndIndex === -1) return ""
+    
+    // Extract plan content between markers
+    return textContent.substring(planStartIndex, planEndIndex).trim()
+  }
+
+  function detectClarificationQuestion(msg: Message.Info): boolean {
+    if (msg.role !== "assistant") return false
+    
+    const textContent = msg.parts
+      .filter(p => p.type === "text")
+      .map(p => p.text)
+      .join("\n")
+    
+    // Look for clarification indicators
+    const clarificationIndicators = [
+      "Before I create a plan, I need to clarify",
+      "**Clarification needed:**",
+      "I need to clarify a few things:",
+      "Could you clarify",
+      "Can you clarify",
+    ]
+    
+    return clarificationIndicators.some(indicator => textContent.includes(indicator))
+  }
+
   async function updateMessage(msg: Message.Info) {
+    // Check if this is a plan or clarification question
+    const session = await get(msg.metadata.sessionID)
+    if (session.mode === "planning") {
+      msg.metadata.planDetected = detectPlan(msg)
+      if (msg.metadata.planDetected) {
+        msg.metadata.planContent = extractPlanContent(msg)
+      }
+      msg.metadata.clarificationQuestion = detectClarificationQuestion(msg)
+    }
+    
     await Storage.writeJSON(
       "session/message/" + msg.metadata.sessionID + "/" + msg.id,
       msg,
@@ -434,6 +517,19 @@ export namespace Session {
     }
     await updateMessage(msg)
     msgs.push(msg)
+
+    // Check if this is a /stats command
+    const textPart = input.parts.find((part) => part.type === "text") as
+      | Message.TextPart
+      | undefined
+    if (textPart && textPart.text.trim().toLowerCase() === "/stats") {
+      return calculateAndReturnStats(
+        input.sessionID,
+        input.providerID,
+        input.modelID,
+        msgs,
+      )
+    }
 
     // Get session to check mode
     const sessionInfo = await get(input.sessionID)
@@ -1022,6 +1118,258 @@ export namespace Session {
       ],
     })
     await App.initialize()
+  }
+
+  async function calculateAndReturnStats(
+    sessionID: string,
+    providerID: string,
+    modelID: string,
+    msgs: Message.Info[],
+  ): Promise<Message.Info> {
+    const session = await get(sessionID)
+    const model = await Provider.getModel(providerID, modelID)
+
+    // Filter out the /stats command message itself
+    const messagesForStats = msgs.filter((msg) => {
+      if (msg.role === "user") {
+        const textPart = msg.parts.find((p) => p.type === "text") as
+          | Message.TextPart
+          | undefined
+        return !(textPart && textPart.text.trim().toLowerCase() === "/stats")
+      }
+      return true
+    })
+
+    // Calculate statistics
+    let totalInputTokens = 0
+    let totalOutputTokens = 0
+    let totalCacheReadTokens = 0
+    let totalCacheWriteTokens = 0
+    let totalCost = 0
+    let userMessageCount = 0
+    let assistantMessageCount = 0
+    const toolUsage: Record<string, number> = {}
+    let firstMessageTime: number | undefined
+    let lastMessageTime: number | undefined
+
+    for (const msg of messagesForStats) {
+      if (msg.metadata.time.created) {
+        if (!firstMessageTime || msg.metadata.time.created < firstMessageTime) {
+          firstMessageTime = msg.metadata.time.created
+        }
+        if (!lastMessageTime || msg.metadata.time.created > lastMessageTime) {
+          lastMessageTime = msg.metadata.time.created
+        }
+      }
+
+      if (msg.role === "user") {
+        userMessageCount++
+      } else if (msg.role === "assistant" && msg.metadata.assistant) {
+        assistantMessageCount++
+        const assistant = msg.metadata.assistant
+        totalInputTokens += assistant.tokens.input
+        totalOutputTokens += assistant.tokens.output
+        totalCacheReadTokens += assistant.tokens.cache.read
+        totalCacheWriteTokens += assistant.tokens.cache.write
+        totalCost += assistant.cost
+
+        // Count tool usage by type
+        for (const [toolCallId, toolData] of Object.entries(
+          msg.metadata.tool,
+        )) {
+          // Try to determine the tool type from the call ID or title
+          let toolType = "unknown"
+
+          // Check the tool call ID pattern (e.g., "read_abc123" -> "read")
+          const toolMatch = toolCallId.match(/^([a-z_]+)_/)
+          if (toolMatch) {
+            toolType = toolMatch[1]
+          } else if (toolData.title) {
+            // Fallback to analyzing the title
+            const title = toolData.title.toLowerCase()
+            if (title.includes("error")) {
+              toolType = "error"
+            } else if (title.includes("plan approved")) {
+              toolType = "plan_approved"
+            } else {
+              toolType = "other"
+            }
+          }
+
+          toolUsage[toolType] = (toolUsage[toolType] || 0) + 1
+        }
+      }
+    }
+
+    const totalTokens =
+      totalInputTokens +
+      totalOutputTokens +
+      totalCacheReadTokens +
+      totalCacheWriteTokens
+    const sessionDuration =
+      firstMessageTime && lastMessageTime
+        ? (lastMessageTime - firstMessageTime) / 1000 / 60 // in minutes
+        : 0
+
+    // Format the statistics
+    const statsText = formatStats({
+      sessionID,
+      sessionTitle: session.title,
+      providerID,
+      modelID,
+      modelName: model.info.name,
+      userMessageCount,
+      assistantMessageCount,
+      totalInputTokens,
+      totalOutputTokens,
+      totalCacheReadTokens,
+      totalCacheWriteTokens,
+      totalTokens,
+      totalCost,
+      toolUsage,
+      sessionDuration,
+      sessionCreated: new Date(session.time.created).toLocaleString(),
+      sessionUpdated: new Date(session.time.updated).toLocaleString(),
+    })
+
+    // Create a stats message
+    const statsMessage: Message.Info = {
+      id: Identifier.ascending("message"),
+      role: "assistant",
+      parts: [
+        {
+          type: "text",
+          text: statsText,
+        },
+      ],
+      metadata: {
+        time: {
+          created: Date.now(),
+          completed: Date.now(),
+        },
+        sessionID,
+        tool: {},
+        assistant: {
+          system: [],
+          modelID,
+          providerID,
+          path: {
+            cwd: App.info().path.cwd,
+            root: App.info().path.root,
+          },
+          cost: 0,
+          tokens: {
+            input: 0,
+            output: 0,
+            reasoning: 0,
+            cache: { read: 0, write: 0 },
+          },
+        },
+      },
+    }
+
+    await updateMessage(statsMessage)
+    return statsMessage
+  }
+
+  function formatStats(stats: {
+    sessionID: string
+    sessionTitle: string
+    providerID: string
+    modelID: string
+    modelName: string
+    userMessageCount: number
+    assistantMessageCount: number
+    totalInputTokens: number
+    totalOutputTokens: number
+    totalCacheReadTokens: number
+    totalCacheWriteTokens: number
+    totalTokens: number
+    totalCost: number
+    toolUsage: Record<string, number>
+    sessionDuration: number
+    sessionCreated: string
+    sessionUpdated: string
+  }): string {
+    const lines: string[] = []
+
+    // Header with key metrics
+    lines.push("📊 **Session Statistics**")
+    lines.push("")
+
+    // Quick summary
+    const totalMessages = stats.userMessageCount + stats.assistantMessageCount
+    lines.push(
+      `**Summary**: ${totalMessages} messages • ${stats.totalTokens.toLocaleString()} tokens • $${stats.totalCost.toFixed(4)}`,
+    )
+    lines.push("")
+
+    // Session details
+    lines.push("**Session**")
+    lines.push(`• ${stats.sessionTitle}`)
+    lines.push(`• Duration: ${stats.sessionDuration.toFixed(1)} minutes`)
+    lines.push(`• Model: ${stats.modelName}`)
+    lines.push("")
+
+    // Message breakdown
+    lines.push("**Messages**")
+    lines.push(`• User: ${stats.userMessageCount}`)
+    lines.push(`• Assistant: ${stats.assistantMessageCount}`)
+    lines.push("")
+
+    // Token usage
+    lines.push("**Tokens**")
+    lines.push(`• Input: ${stats.totalInputTokens.toLocaleString()}`)
+    lines.push(`• Output: ${stats.totalOutputTokens.toLocaleString()}`)
+    if (stats.totalCacheReadTokens > 0 || stats.totalCacheWriteTokens > 0) {
+      lines.push(`• Cache read: ${stats.totalCacheReadTokens.toLocaleString()}`)
+      lines.push(
+        `• Cache write: ${stats.totalCacheWriteTokens.toLocaleString()}`,
+      )
+    }
+    lines.push(`• Total: ${stats.totalTokens.toLocaleString()}`)
+    lines.push("")
+
+    // Cost breakdown
+    lines.push("**Cost**")
+    lines.push(`• Total: $${stats.totalCost.toFixed(4)}`)
+    if (stats.assistantMessageCount > 0 && stats.totalCost > 0) {
+      lines.push(
+        `• Per message: $${(stats.totalCost / stats.assistantMessageCount).toFixed(4)}`,
+      )
+      lines.push(
+        `• Per 1K tokens: $${((stats.totalCost / stats.totalTokens) * 1000).toFixed(4)}`,
+      )
+    }
+    lines.push("")
+
+    // Tool usage (if any)
+    if (Object.keys(stats.toolUsage).length > 0) {
+      lines.push("**Tools Used**")
+      const sortedTools = Object.entries(stats.toolUsage)
+        .sort((a, b) => b[1] - a[1])
+        .filter(([tool]) => tool !== "unknown" && tool !== "error") // Hide unknown/error tools
+
+      for (const [tool, count] of sortedTools) {
+        const toolName = tool.replace(/_/g, " ") // Replace underscores with spaces
+        lines.push(`• ${toolName}: ${count}×`)
+      }
+
+      // Show errors separately if any
+      const errorCount = stats.toolUsage["error"] || 0
+      if (errorCount > 0) {
+        lines.push(`• errors: ${errorCount}×`)
+      }
+      lines.push("")
+    }
+
+    // Session metadata (collapsed)
+    lines.push("**Details**")
+    lines.push(`• ID: ${stats.sessionID}`)
+    lines.push(`• Created: ${stats.sessionCreated}`)
+    lines.push(`• Updated: ${stats.sessionUpdated}`)
+
+    return lines.join("\n")
   }
 }
 

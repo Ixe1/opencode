@@ -25,7 +25,10 @@ if ! command -v go &> /dev/null; then
     exit 1
 fi
 
-# Change to the project directory
+# Save current directory
+CURRENT_DIR="$(pwd)"
+
+# Change to the project directory temporarily for dependency check
 cd "$SCRIPT_DIR"
 
 # Install dependencies if needed
@@ -34,6 +37,9 @@ if [ ! -d "node_modules" ]; then
     bun install
 fi
 
+# Return to the original directory
+cd "$CURRENT_DIR"
+
 # Start opencode directly (it handles both server and TUI internally)
 echo -e "${GREEN}Starting opencode...${NC}"
 echo -e "${BLUE}Press Ctrl+C to exit${NC}"
@@ -41,4 +47,5 @@ echo -e "${BLUE}Press Shift+Tab to toggle planning mode${NC}"
 echo ""
 
 # Run opencode directly - it starts both server and TUI internally
-exec bun run packages/opencode/src/index.ts "$@"
+# Use absolute path to run from current directory
+exec bun run "$SCRIPT_DIR/packages/opencode/src/index.ts" "$@"

@@ -239,11 +239,17 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		return a, tea.Batch(cmds...)
 	case tea.BackgroundColorMsg:
+		isDark := msg.IsDark()
+		// Check if we have a forced dark mode setting
+		if a.app.State.ForceDarkMode != nil {
+			isDark = *a.app.State.ForceDarkMode
+		}
 		styles.Terminal = &styles.TerminalInfo{
 			Background:       msg.Color,
-			BackgroundIsDark: msg.IsDark(),
+			BackgroundIsDark: isDark,
+			ForceDarkMode:    a.app.State.ForceDarkMode,
 		}
-		slog.Debug("Background color", "color", msg.String(), "isDark", msg.IsDark())
+		slog.Debug("Background color", "color", msg.String(), "isDark", isDark, "forced", a.app.State.ForceDarkMode != nil)
 		return a, func() tea.Msg {
 			theme.UpdateSystemTheme(
 				styles.Terminal.Background,
@@ -260,6 +266,36 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.modal = nil
 		return a, cmd
+	case dialog.ClosePlanApprovalDialogMsg:
+		a.modal = nil
+		if msg.Approved && a.app.Session != nil {
+			// Call the plan approval endpoint
+			ctx := context.Background()
+			resp, err := a.app.Client.PostSessionApprovePlanWithResponse(ctx, client.PostSessionApprovePlanJSONRequestBody{
+				SessionID:   a.app.Session.Id,
+				PlanContent: msg.PlanContent,
+			})
+			if err != nil {
+				return a, toast.NewErrorToast("Failed to approve plan: " + err.Error())
+			}
+			if resp.StatusCode() != 200 {
+				return a, toast.NewErrorToast("Failed to approve plan")
+			}
+
+			// Send a message to trigger the AI to proceed with implementation after a brief delay
+			delayedSendCmd := tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
+				return app.SendMsg{
+					Text:        "I've approved the plan. Please proceed with the implementation.",
+					Attachments: nil,
+				}
+			})
+
+			// The server will handle mode change and send the approval message
+			successToast := toast.NewSuccessToast("Plan approved! Starting implementation...")
+			return a, tea.Batch(successToast, delayedSendCmd)
+		}
+		// If rejected, just close the dialog and let user provide feedback
+		return a, nil
 	// Plan approval/rejection is now handled inline in the chat
 	case commands.ExecuteCommandMsg:
 		updated, cmd := a.executeCommand(commands.Command(msg))
@@ -326,7 +362,24 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.app.Messages = append(a.app.Messages, msg.Properties.Info)
 			}
 
-			// Plans are now shown inline in the chat, no modal needed
+			// Check if this is a plan message and show approval dialog
+			if msg.Properties.Info.Role == client.Assistant &&
+				msg.Properties.Info.Metadata.PlanDetected != nil &&
+				*msg.Properties.Info.Metadata.PlanDetected &&
+				a.app.Session != nil && a.app.Session.Mode == "planning" {
+				// Extract plan content from message
+				var planContent strings.Builder
+				for _, part := range msg.Properties.Info.Parts {
+					// Try to get text part
+					if textPart, err := part.AsMessagePartText(); err == nil {
+						planContent.WriteString(textPart.Text)
+					}
+				}
+
+				// Show plan approval dialog
+				planDialog := dialog.NewPlanApprovalDialogCmp(planContent.String())
+				a.modal = &planDialog
+			}
 		}
 	case client.EventSessionError:
 		unknownError, err := msg.Properties.Error.AsUnknownError()
@@ -557,6 +610,12 @@ func (a appModel) executeCommand(command commands.Command) (tea.Model, tea.Cmd) 
 		}
 		// TODO: block until compaction is complete
 		a.app.CompactSession(context.Background())
+	case commands.SessionStatsCommand:
+		if a.app.Session.Id == "" {
+			return a, toast.NewErrorToast("No active session")
+		}
+		// Send /stats command to backend
+		return a, a.app.SendChatMessage(context.Background(), "/stats", nil)
 	case commands.CheckpointListCommand:
 		if a.app.Session.Id == "" {
 			return a, toast.NewErrorToast("No active session")

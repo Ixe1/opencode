@@ -29,10 +29,10 @@ func NewPlanApprovalDialogCmp(plan string) PlanApprovalDialogCmp {
 		viewport.WithWidth(80),
 		viewport.WithHeight(20),
 	)
-	
+
 	// Set the content immediately
 	vp.SetContent(plan)
-	
+
 	return PlanApprovalDialogCmp{
 		selected: 0,
 		viewport: vp,
@@ -74,36 +74,36 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		
+
 		// Calculate available space for the dialog
 		// Leave some margin for the border and padding
-		marginX := 4  // 2 chars on each side
-		marginY := 2  // 1 line on top and bottom
-		
-		// Calculate dialog dimensions (80% of screen with max width)
-		dialogWidth := int(float64(m.width) * 0.8)
-		maxWidth := 120
+		marginX := 4 // 2 chars on each side
+		marginY := 2 // 1 line on top and bottom
+
+		// Calculate dialog dimensions (70% of screen with max width)
+		dialogWidth := int(float64(m.width) * 0.7)
+		maxWidth := 100
 		if dialogWidth > maxWidth {
 			dialogWidth = maxWidth
 		}
-		if dialogWidth > m.width - marginX {
+		if dialogWidth > m.width-marginX {
 			dialogWidth = m.width - marginX
 		}
-		
+
 		// Calculate viewport size within dialog
 		// Account for dialog chrome (title, buttons, borders, padding)
-		headerHeight := 4  // Title + divider
-		footerHeight := 6  // Question + buttons + padding
-		borderHeight := 2  // Top and bottom borders
-		paddingX := 6      // Padding inside border (2 + 2 for border + 2 for padding)
-		
+		headerHeight := 4 // Title + divider
+		footerHeight := 6 // Question + buttons + padding
+		borderHeight := 2 // Top and bottom borders
+		paddingX := 6     // Padding inside border (2 + 2 for border + 2 for padding)
+
 		viewportWidth := dialogWidth - paddingX
 		viewportHeight := m.height - headerHeight - footerHeight - borderHeight - marginY
-		
+
 		// Ensure minimum sizes
 		viewportWidth = max(viewportWidth, 40)
 		viewportHeight = max(viewportHeight, 10)
-		
+
 		// Update viewport
 		m.viewport = viewport.New(
 			viewport.WithWidth(viewportWidth),
@@ -139,7 +139,7 @@ func (m PlanApprovalDialogCmp) View() string {
 		Width(viewportWidth).
 		Padding(0, 2).
 		Render(m.viewport.View())
-	
+
 	// Scroll indicator
 	scrollInfo := ""
 	if m.viewport.TotalLineCount() > m.viewport.Height() {
@@ -220,11 +220,11 @@ func (m PlanApprovalDialogCmp) View() string {
 		dividerStyle.Render(divider),
 		planView,
 	}
-	
+
 	if scrollInfo != "" {
 		sections = append(sections, baseStyle.Align(lipgloss.Center).Width(viewportWidth).Render(scrollInfo))
 	}
-	
+
 	sections = append(sections,
 		dividerStyle.Render(divider),
 		question,
@@ -255,10 +255,10 @@ func (m *PlanApprovalDialogCmp) SetSize(width, height int) {
 // Render renders the dialog on top of the background.
 func (m PlanApprovalDialogCmp) Render(background string) string {
 	t := theme.CurrentTheme()
-	
+
 	// Get the dialog view
 	dialogView := m.View()
-	
+
 	// Center the dialog using lipgloss.Place
 	centeredDialog := lipgloss.Place(
 		m.width,
@@ -267,7 +267,7 @@ func (m PlanApprovalDialogCmp) Render(background string) string {
 		lipgloss.Center,
 		dialogView,
 	)
-	
+
 	// Create overlay with the background dimmed
 	dimmedBg := styles.NewStyle().
 		Width(m.width).
@@ -275,7 +275,7 @@ func (m PlanApprovalDialogCmp) Render(background string) string {
 		Background(t.Background()).
 		Foreground(t.TextMuted()).
 		Render(background)
-	
+
 	// Place the centered dialog on top of the dimmed background
 	return layout.PlaceOverlay(0, 0, centeredDialog, dimmedBg)
 }
