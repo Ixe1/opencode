@@ -11,6 +11,7 @@ import { Bus } from "../bus"
 import { File } from "../file"
 import { FileTime } from "../file/time"
 import { Session } from "../session"
+import { Log } from "../util/log"
 
 export const WriteTool = Tool.define({
   id: "write",
@@ -55,19 +56,70 @@ export const WriteTool = Tool.define({
     })
 
     // Create checkpoint before modifying the file (if enabled)
+    let checkpointMessage = ""
     const config = await Config.get()
     if (config.checkpointing?.enabled) {
-      await Checkpoint.create({
-        sessionID: ctx.sessionID,
-        messageID: ctx.messageID,
-        description: exists
-          ? `Overwriting ${path.basename(filepath)}`
-          : `Creating ${path.basename(filepath)}`,
-        toolCall: {
-          tool: "write",
-          params: params,
-        },
-      })
+      // Find the git root for this specific file
+      const gitRoot = await Checkpoint.findGitRoot(filepath)
+      if (gitRoot) {
+        if (exists) {
+          // For existing files, check if tracked
+          const isTracked = await Checkpoint.isFileTracked(filepath, gitRoot)
+          if (isTracked) {
+            const relativePath = path.relative(gitRoot, filepath)
+            const contentPreview = params.content.split('\n')[0].substring(0, 50)
+            const description = `Overwrite ${relativePath}: "${contentPreview}${params.content.length > 50 ? '...' : ''}"`
+            
+            const checkpoint = await Checkpoint.create({
+              sessionID: ctx.sessionID,
+              messageID: ctx.messageID,
+              description,
+              gitRoot,
+              toolCall: {
+                tool: "write",
+                params: params,
+              },
+            })
+            
+            if (checkpoint) {
+              checkpointMessage = `\n<checkpoint>\n✓ Checkpoint created: ${description}\n</checkpoint>\n`
+            }
+          } else {
+            // Try to stage the file first
+            const staged = await Checkpoint.stageFile(filepath, gitRoot)
+            if (staged) {
+              const relativePath = path.relative(gitRoot, filepath)
+              const description = `Overwrite ${relativePath} (auto-staged)`
+              
+              const checkpoint = await Checkpoint.create({
+                sessionID: ctx.sessionID,
+                messageID: ctx.messageID,
+                description,
+                gitRoot,
+                toolCall: {
+                  tool: "write",
+                  params: params,
+                },
+              })
+              
+              if (checkpoint) {
+                checkpointMessage = `\n<checkpoint>\n✓ Checkpoint created: ${description}\n</checkpoint>\n`
+              }
+            } else {
+              Log.create({ service: "write" }).info(
+                "skipping checkpoint - file is not tracked and could not be staged",
+                { file: filepath },
+              )
+            }
+          }
+        }
+        // For new files, we'll stage them after creation
+      } else {
+        Log.create({ service: "write" }).info(
+          "skipping checkpoint - file is not in a git repository",
+          { file: filepath },
+        )
+      }
     }
 
     await Bun.write(filepath, params.content)
@@ -76,7 +128,34 @@ export const WriteTool = Tool.define({
     })
     FileTime.read(ctx.sessionID, filepath)
 
-    let output = ""
+    // If checkpointing is enabled and this is a new file, stage it and create initial checkpoint
+    if (config.checkpointing?.enabled && !exists) {
+      const gitRoot = await Checkpoint.findGitRoot(filepath)
+      if (gitRoot) {
+        const staged = await Checkpoint.stageFile(filepath, gitRoot)
+        if (staged) {
+          const relativePath = path.relative(gitRoot, filepath)
+          const description = `Create ${relativePath} (auto-staged)`
+          
+          const checkpoint = await Checkpoint.create({
+            sessionID: ctx.sessionID,
+            messageID: ctx.messageID,
+            description,
+            gitRoot,
+            toolCall: {
+              tool: "write",
+              params: params,
+            },
+          })
+          
+          if (checkpoint && !checkpointMessage) {
+            checkpointMessage = `\n<checkpoint>\n✓ Checkpoint created: ${description}\n</checkpoint>\n`
+          }
+        }
+      }
+    }
+
+    let output = checkpointMessage
     await LSP.touchFile(filepath, true)
     const diagnostics = await LSP.diagnostics()
     for (const [file, issues] of Object.entries(diagnostics)) {

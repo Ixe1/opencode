@@ -24,7 +24,7 @@ export namespace Config {
 
     // Ensure checkpointing is enabled by default
     if (!result.checkpointing) {
-      result.checkpointing = { enabled: true }
+      result.checkpointing = { enabled: true, maxCheckpoints: 150 }
     }
 
     log.info("loaded", result)
@@ -183,9 +183,19 @@ export namespace Config {
             .describe(
               "Enable automatic checkpointing before file modifications",
             ),
+          maxCheckpoints: z
+            .number()
+            .int()
+            .min(10)
+            .max(1000)
+            .optional()
+            .default(150)
+            .describe(
+              "Maximum number of checkpoints to keep per project (oldest will be removed)",
+            ),
         })
         .optional()
-        .default({ enabled: true })
+        .default({ enabled: true, maxCheckpoints: 150 })
         .describe("Checkpoint configuration for automatic state saving"),
       experimental: z
         .object({
@@ -226,7 +236,7 @@ export namespace Config {
 
     // Apply defaults
     if (!result.checkpointing) {
-      result.checkpointing = { enabled: true }
+      result.checkpointing = { enabled: true, maxCheckpoints: 150 }
     }
 
     await import(path.join(Global.Path.config, "config"), {

@@ -28,7 +28,7 @@ type CheckpointInfo = client.CheckpointInfo
 
 // checkpointItem is a custom list item for checkpoints
 type checkpointItem struct {
-	checkpoint         CheckpointInfo
+	checkpoint          CheckpointInfo
 	isRestoreConfirming bool
 }
 
@@ -41,8 +41,8 @@ func (c checkpointItem) Render(selected bool, width int) string {
 		text = "Press again to confirm restore"
 	} else {
 		// Format: "2h ago: Editing main.go (15 files)"
-		// Time.Created is in seconds as float64
-		created := time.Unix(int64(c.checkpoint.Time.Created), 0)
+		// Time.Created is in milliseconds as float64
+		created := time.Unix(int64(c.checkpoint.Time.Created/1000), 0)
 		ago := time.Since(created)
 		var timeStr string
 		if ago < time.Minute {
@@ -54,13 +54,13 @@ func (c checkpointItem) Render(selected bool, width int) string {
 		} else {
 			timeStr = fmt.Sprintf("%dd ago", int(ago.Hours()/24))
 		}
-		
+
 		fileCount := len(c.checkpoint.Files)
 		fileStr := "file"
 		if fileCount != 1 {
 			fileStr = "files"
 		}
-		
+
 		text = fmt.Sprintf("%s: %s (%d %s)", timeStr, c.checkpoint.Message, fileCount, fileStr)
 	}
 
@@ -137,14 +137,19 @@ func (c *checkpointDialog) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				c.restoreConfirmation = selectedIndex
 				items := c.createListItems()
 				c.list.SetItems(items)
+				// Preserve the current selection
+				c.list.SetSelectedIndex(selectedIndex)
 				return c, nil
 			}
 		case "esc":
 			if c.restoreConfirmation >= 0 {
 				// Cancel confirmation
+				prevSelection := c.restoreConfirmation
 				c.restoreConfirmation = -1
 				items := c.createListItems()
 				c.list.SetItems(items)
+				// Preserve the selection that was being confirmed
+				c.list.SetSelectedIndex(prevSelection)
 				return c, nil
 			}
 			return c, util.CmdHandler(modal.CloseModalMsg{})
@@ -163,6 +168,8 @@ func (c *checkpointDialog) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.restoreConfirmation = -1
 		items := c.createListItems()
 		c.list.SetItems(items)
+		// Keep the current selection
+		c.list.SetSelectedIndex(currentIndex)
 	}
 
 	return c, cmd
@@ -206,7 +213,7 @@ func (c *checkpointDialog) restoreCheckpoint(checkpoint CheckpointInfo) tea.Cmd 
 		if response.StatusCode != 200 {
 			return toast.NewErrorToast("Failed to restore checkpoint")
 		}
-		
+
 		// Show success message with checkpoint details
 		successMsg := fmt.Sprintf("Restored checkpoint: %s", checkpoint.Message)
 		return toast.NewSuccessToast(successMsg)
@@ -223,7 +230,7 @@ func NewCheckpointDialog(app *app.App) CheckpointDialog {
 			SessionID: &app.Session.ID,
 		},
 	)
-	
+
 	var checkpoints []CheckpointInfo
 	if err == nil && response.StatusCode == 200 && response.JSON200 != nil {
 		// Use the checkpoints directly from the response

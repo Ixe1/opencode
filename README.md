@@ -117,3 +117,5 @@ The other confusingly named repo has no relation to this one. You can [read the 
 ---
 
 **Join our community** [YouTube](https://www.youtube.com/c/sst-dev) | [X.com](https://x.com/SST_dev)
+
+<!-- TEST MODIFICATION #3 - Testing checkpoint restore with debug logging -->

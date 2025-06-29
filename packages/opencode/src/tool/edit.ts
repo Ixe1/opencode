@@ -16,6 +16,7 @@ import { File } from "../file"
 import { Bus } from "../bus"
 import { FileTime } from "../file/time"
 import { Session } from "../session"
+import { Log } from "../util/log"
 
 export const EditTool = Tool.define({
   id: "edit",
@@ -71,17 +72,54 @@ export const EditTool = Tool.define({
     })
 
     // Create checkpoint before modifying the file (if enabled)
+    let checkpointMessage = ""
     const config = await Config.get()
     if (config.checkpointing?.enabled) {
-      await Checkpoint.create({
-        sessionID: ctx.sessionID,
-        messageID: ctx.messageID,
-        description: `Editing ${path.basename(filepath)}`,
-        toolCall: {
-          tool: "edit",
-          params: params,
-        },
-      })
+      // Find the git root for this specific file
+      const gitRoot = await Checkpoint.findGitRoot(filepath)
+      if (gitRoot) {
+        let isTracked = await Checkpoint.isFileTracked(filepath, gitRoot)
+        
+        // If not tracked, try to stage it first
+        if (!isTracked) {
+          const staged = await Checkpoint.stageFile(filepath, gitRoot)
+          if (staged) {
+            isTracked = true
+          }
+        }
+        
+        if (isTracked) {
+          // Create a more meaningful description
+          const relativePath = path.relative(gitRoot, filepath)
+          const oldPreview = params.oldString.split('\n')[0].substring(0, 50)
+          const description = `Edit ${relativePath}: "${oldPreview}${params.oldString.length > 50 ? '...' : ''}"`
+          
+          const checkpoint = await Checkpoint.create({
+            sessionID: ctx.sessionID,
+            messageID: ctx.messageID,
+            description,
+            gitRoot,
+            toolCall: {
+              tool: "edit",
+              params: params,
+            },
+          })
+          
+          if (checkpoint) {
+            checkpointMessage = `\n<checkpoint>\n✓ Checkpoint created: ${description}\n</checkpoint>\n`
+          }
+        } else {
+          Log.create({ service: "edit" }).info(
+            "skipping checkpoint - file is not tracked and could not be staged",
+            { file: filepath },
+          )
+        }
+      } else {
+        Log.create({ service: "edit" }).info(
+          "skipping checkpoint - file is not in a git repository",
+          { file: filepath },
+        )
+      }
     }
 
     let contentOld = ""
@@ -123,7 +161,7 @@ export const EditTool = Tool.define({
 
     FileTime.read(ctx.sessionID, filepath)
 
-    let output = ""
+    let output = checkpointMessage
     await LSP.touchFile(filepath, true)
     const diagnostics = await LSP.diagnostics()
     for (const [file, issues] of Object.entries(diagnostics)) {

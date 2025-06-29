@@ -7,6 +7,9 @@ import * as path from "node:path"
 import * as os from "node:os"
 import * as crypto from "node:crypto"
 import * as fs from "node:fs/promises"
+import { Filesystem } from "../util/filesystem"
+import { Storage } from "../storage/storage"
+import { Config } from "../config/config"
 
 export namespace Checkpoint {
   const log = Log.create({ service: "checkpoint" })
@@ -44,9 +47,133 @@ export namespace Checkpoint {
     ),
   }
 
+  async function loadPersistedCheckpoints(
+    checkpoints: Map<string, Info[]>,
+    shadowRepos: Map<string, string>
+  ) {
+    try {
+      const data = await Storage.readJSON<{
+        checkpoints: [string, Info[]][]
+        shadowRepos: [string, string][]
+      }>("checkpoints")
+      
+      // Restore checkpoints map
+      for (const [key, value] of data.checkpoints) {
+        checkpoints.set(key, value)
+      }
+      
+      // Restore shadow repos map
+      for (const [key, value] of data.shadowRepos) {
+        shadowRepos.set(key, value)
+      }
+      
+      log.info("loaded persisted checkpoints", {
+        checkpointCount: data.checkpoints.length,
+        shadowRepoCount: data.shadowRepos.length
+      })
+    } catch (error) {
+      // No persisted checkpoints or error loading them
+      log.info("no persisted checkpoints found")
+    }
+  }
+
+  async function persistCheckpoints() {
+    const checkpointState = state()
+    const data = {
+      checkpoints: Array.from(checkpointState.checkpoints.entries()),
+      shadowRepos: Array.from(checkpointState.shadowRepos.entries())
+    }
+    
+    await Storage.writeJSON("checkpoints", data)
+    log.info("persisted checkpoints", {
+      checkpointCount: data.checkpoints.length,
+      shadowRepoCount: data.shadowRepos.length
+    })
+  }
+
+  async function cleanupOldCheckpoints(sessionID: string, projectPath: string) {
+    const config = await Config.get()
+    const maxCheckpoints = config.checkpointing?.maxCheckpoints || 150
+    
+    const checkpointState = state()
+    const sessionCheckpoints = checkpointState.checkpoints.get(sessionID) || []
+    
+    if (sessionCheckpoints.length <= maxCheckpoints) {
+      return
+    }
+    
+    // Sort by creation time (oldest first)
+    const sortedCheckpoints = [...sessionCheckpoints].sort(
+      (a, b) => a.time.created - b.time.created
+    )
+    
+    // Calculate how many to remove
+    const toRemove = sortedCheckpoints.length - maxCheckpoints
+    const checkpointsToRemove = sortedCheckpoints.slice(0, toRemove)
+    
+    log.info("cleaning up old checkpoints", {
+      total: sortedCheckpoints.length,
+      maxAllowed: maxCheckpoints,
+      removing: toRemove
+    })
+    
+    // Remove from shadow repo
+    const shadowRepoPath = checkpointState.shadowRepos.get(projectPath)
+    if (shadowRepoPath) {
+      for (const checkpoint of checkpointsToRemove) {
+        try {
+          // Remove the commit from git history (this is complex, so we'll just log for now)
+          log.info("would remove checkpoint from shadow repo", {
+            checkpointId: checkpoint.id,
+            commitHash: checkpoint.commitHash
+          })
+          // TODO: Implement git history rewriting to remove old commits
+        } catch (error) {
+          log.warn("failed to remove checkpoint from shadow repo", {
+            checkpointId: checkpoint.id,
+            error
+          })
+        }
+      }
+    }
+    
+    // Remove from state
+    const remainingCheckpoints = sortedCheckpoints.slice(toRemove)
+    checkpointState.checkpoints.set(sessionID, remainingCheckpoints)
+    
+    // Persist the updated state
+    await persistCheckpoints()
+  }
+
+  async function runGitGC(shadowRepoPath: string) {
+    try {
+      log.info("running git gc on shadow repo", { shadowRepoPath })
+      
+      const gcProcess = Bun.spawn({
+        cmd: ["git", "gc", "--auto"],
+        cwd: shadowRepoPath,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      
+      // Don't wait for it to complete - let it run in background
+      gcProcess.exited.then(() => {
+        log.info("git gc completed", { shadowRepoPath })
+      }).catch((error) => {
+        log.warn("git gc failed", { shadowRepoPath, error })
+      })
+    } catch (error) {
+      log.warn("failed to start git gc", { shadowRepoPath, error })
+    }
+  }
+
   const state = App.state("checkpoint", () => {
     const checkpoints = new Map<string, Info[]>()
     const shadowRepos = new Map<string, string>()
+    
+    // Load persisted checkpoints on startup
+    loadPersistedCheckpoints(checkpoints, shadowRepos)
+    
     return {
       checkpoints,
       shadowRepos,
@@ -148,15 +275,74 @@ export namespace Checkpoint {
     }
   }
 
+  export async function isFileTracked(
+    filePath: string,
+    projectPath: string,
+  ): Promise<boolean> {
+    try {
+      const relativePath = path.relative(projectPath, filePath)
+      const checkProcess = Bun.spawn({
+        cmd: ["git", "ls-files", "--error-unmatch", relativePath],
+        cwd: projectPath,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      await checkProcess.exited
+      return checkProcess.exitCode === 0
+    } catch {
+      return false
+    }
+  }
+
+  export async function findGitRoot(filePath: string): Promise<string | undefined> {
+    const dir = path.dirname(filePath)
+    const gitPath = await Filesystem.findUp(".git", dir)
+    if (gitPath && gitPath.length > 0) {
+      return path.dirname(gitPath[0])
+    }
+    return undefined
+  }
+
+  export async function stageFile(
+    filePath: string,
+    projectPath: string,
+  ): Promise<boolean> {
+    try {
+      const relativePath = path.relative(projectPath, filePath)
+      const addProcess = Bun.spawn({
+        cmd: ["git", "add", relativePath],
+        cwd: projectPath,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      await addProcess.exited
+      if (addProcess.exitCode === 0) {
+        log.info("staged file for checkpointing", { file: relativePath })
+        return true
+      } else {
+        log.warn("failed to stage file", { file: relativePath, exitCode: addProcess.exitCode })
+        return false
+      }
+    } catch (error) {
+      log.error("error staging file", { file: filePath, error })
+      return false
+    }
+  }
+
   export async function create(input: {
     sessionID: string
     messageID: string
     description: string
     conversationSnapshot?: any
     toolCall?: any
+    gitRoot?: string
   }): Promise<Info | undefined> {
     const app = App.info()
-    if (!app.git) {
+    
+    // Use provided gitRoot or fall back to app's git root
+    const projectPath = input.gitRoot || (app.git ? app.path.root : undefined)
+    
+    if (!projectPath) {
       log.info("skipping checkpoint - not a git repository")
       return undefined
     }
@@ -168,7 +354,6 @@ export namespace Checkpoint {
       conversationSnapshot,
       toolCall,
     } = input
-    const projectPath = app.path.root
 
     try {
       // Get list of all tracked files in the project
@@ -198,6 +383,24 @@ export namespace Checkpoint {
 
       // Copy project files to shadow repo
       await copyProjectToShadow(projectPath, shadowRepoPath, trackedFiles)
+      
+      // Check if there are any actual changes to commit
+      const statusProcess = Bun.spawn({
+        cmd: ["git", "status", "--porcelain"],
+        cwd: shadowRepoPath,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      await statusProcess.exited
+      const statusOutput = await new Response(statusProcess.stdout).text()
+      
+      if (!statusOutput.trim()) {
+        log.info("skipping checkpoint - no changes to commit", {
+          projectPath,
+          description
+        })
+        return undefined
+      }
 
       // Stage all files in shadow repo
       const addProcess = Bun.spawn({
@@ -254,6 +457,17 @@ export namespace Checkpoint {
         checkpointState.checkpoints.get(sessionID) || []
       sessionCheckpoints.push(checkpoint)
       checkpointState.checkpoints.set(sessionID, sessionCheckpoints)
+      
+      // Persist checkpoints to storage
+      await persistCheckpoints()
+      
+      // Clean up old checkpoints if we exceed the limit
+      await cleanupOldCheckpoints(sessionID, projectPath)
+      
+      // Run git gc periodically (every 50 checkpoints)
+      if (sessionCheckpoints.length % 50 === 0) {
+        runGitGC(shadowRepoPath)
+      }
 
       // Save checkpoint metadata to file in shadow repo
       const metadataPath = path.join(
@@ -287,7 +501,6 @@ export namespace Checkpoint {
     }
 
     const checkpointState = state()
-    const projectPath = app.path.root
 
     // Find the checkpoint
     let checkpoint: Info | undefined
@@ -301,22 +514,6 @@ export namespace Checkpoint {
     }
 
     try {
-      // Check for uncommitted changes in the main repo
-      const statusProcess = Bun.spawn({
-        cmd: ["git", "status", "--porcelain"],
-        cwd: projectPath,
-        stdout: "pipe",
-        stderr: "pipe",
-      })
-      await statusProcess.exited
-      const statusOutput = await new Response(statusProcess.stdout).text()
-
-      if (statusOutput.trim()) {
-        throw new Error(
-          "Cannot restore checkpoint: uncommitted changes in working directory",
-        )
-      }
-
       // Checkout the checkpoint commit in shadow repo
       const checkoutProcess = Bun.spawn({
         cmd: ["git", "checkout", checkpoint.commitHash],
@@ -327,12 +524,21 @@ export namespace Checkpoint {
       await checkoutProcess.exited
 
       // Copy files from shadow repo back to project
+      log.info("starting file restoration", {
+        fileCount: checkpoint.files.length,
+        files: checkpoint.files,
+        shadowRepoPath: checkpoint.shadowRepoPath,
+        projectPath: checkpoint.projectPath
+      })
+      
       for (const file of checkpoint.files) {
         const srcPath = path.join(checkpoint.shadowRepoPath, file)
-        const destPath = path.join(projectPath, file)
+        const destPath = path.join(checkpoint.projectPath, file)
 
         try {
+          log.info("restoring file", { file, srcPath, destPath })
           await fs.copyFile(srcPath, destPath)
+          log.info("file restored successfully", { file })
         } catch (error) {
           log.warn("failed to restore file from shadow repo", { file, error })
         }
@@ -355,7 +561,9 @@ export namespace Checkpoint {
     const checkpointState = state()
 
     if (sessionID) {
-      return checkpointState.checkpoints.get(sessionID) || []
+      const sessionCheckpoints = checkpointState.checkpoints.get(sessionID) || []
+      // Sort by creation time, newest first
+      return sessionCheckpoints.sort((a, b) => b.time.created - a.time.created)
     }
 
     // Return all checkpoints across all sessions
