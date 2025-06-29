@@ -52,7 +52,7 @@ export namespace LSP {
         const wait = client.waitForDiagnostics({ path: input })
         await client.notify.open({ path: input })
         return wait
-      })
+      }, { filterByExtension: extension })
     }
   }
 
@@ -73,6 +73,7 @@ export namespace LSP {
     line: number
     character: number
   }) {
+    const extension = path.parse(input.file).ext
     return run((client) => {
       return client.connection.sendRequest("textDocument/hover", {
         textDocument: {
@@ -83,13 +84,28 @@ export namespace LSP {
           character: input.character,
         },
       })
-    })
+    }, { filterByExtension: extension })
   }
 
   async function run<T>(
     input: (client: LSPClient.Info) => Promise<T>,
+    options?: { filterByExtension?: string },
   ): Promise<T[]> {
-    const clients = await state().then((x) => [...x.clients.values()])
+    const s = await state()
+    let clients = [...s.clients.values()]
+    
+    // If filterByExtension is provided, only run on clients that support that extension
+    if (options?.filterByExtension) {
+      const extension = options.filterByExtension
+      const matchingServerIds = LSPServer.All
+        .filter((server) => server.extensions.includes(extension))
+        .map((server) => server.id)
+      
+      clients = clients.filter((client) => 
+        matchingServerIds.includes(client.serverID)
+      )
+    }
+    
     const tasks = clients.map((x) => input(x))
     return Promise.all(tasks)
   }
