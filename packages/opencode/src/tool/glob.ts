@@ -4,6 +4,7 @@ import { Tool } from "./tool"
 import { App } from "../app/app"
 import DESCRIPTION from "./glob.txt"
 import { Ripgrep } from "../external/ripgrep"
+import { PathValidation } from "../util/path-validation"
 
 export const GlobTool = Tool.define({
   id: "glob",
@@ -18,11 +19,13 @@ export const GlobTool = Tool.define({
       ),
   }),
   async execute(params) {
+    // Check for relative paths and throw error
+    if (params.path && PathValidation.isRelativePath(params.path)) {
+      throw new Error(PathValidation.getRelativePathError(params.path))
+    }
+
     const app = App.info()
-    let search = params.path ?? app.path.cwd
-    search = path.isAbsolute(search)
-      ? search
-      : path.resolve(app.path.cwd, search)
+    const search = params.path ?? app.path.cwd
 
     const limit = 100
     const files = []

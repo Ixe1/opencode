@@ -1,11 +1,11 @@
 import { z } from "zod"
-import * as fs from "fs"
 import * as path from "path"
 import { Tool } from "./tool"
 import { LSP } from "../lsp"
 import { FileTime } from "../file/time"
 import DESCRIPTION from "./read.txt"
 import { App } from "../app/app"
+import { PathValidation } from "../util/path-validation"
 
 const MAX_READ_SIZE = 250 * 1024
 const DEFAULT_READ_LIMIT = 2000
@@ -27,32 +27,17 @@ export const ReadTool = Tool.define({
   }),
   async execute(params, ctx) {
     let filePath = params.filePath
-    if (!path.isAbsolute(filePath)) {
-      filePath = path.join(process.cwd(), filePath)
+    
+    // Check for relative paths and throw error
+    if (PathValidation.isRelativePath(filePath)) {
+      throw new Error(PathValidation.getRelativePathError(filePath))
     }
 
     const file = Bun.file(filePath)
     if (!(await file.exists())) {
-      const dir = path.dirname(filePath)
-      const base = path.basename(filePath)
-
-      const dirEntries = fs.readdirSync(dir)
-      const suggestions = dirEntries
-        .filter(
-          (entry) =>
-            entry.toLowerCase().includes(base.toLowerCase()) ||
-            base.toLowerCase().includes(entry.toLowerCase()),
-        )
-        .map((entry) => path.join(dir, entry))
-        .slice(0, 3)
-
-      if (suggestions.length > 0) {
-        throw new Error(
-          `File not found: ${filePath}\n\nDid you mean one of these?\n${suggestions.join("\n")}`,
-        )
-      }
-
-      throw new Error(`File not found: ${filePath}`)
+      // Use the new path validation utility for better suggestions
+      const errorMsg = await PathValidation.getPathNotFoundError(filePath)
+      throw new Error(errorMsg)
     }
     const stats = await file.stat()
 

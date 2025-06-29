@@ -560,6 +560,25 @@ func renderToolInvocation(
 		if isLast {
 			paddingBottom = 1
 		}
+
+		// Always show results for edit and write tools (contains checkpoint/diagnostic info)
+		alwaysShowResult := toolCall.ToolInvocation.ToolName == "edit" || toolCall.ToolInvocation.ToolName == "write"
+		if alwaysShowResult && result != nil && *result != "" {
+			// Show title and result
+			titleBlock := renderContentBlock(style.Render(title),
+				WithAlign(lipgloss.Left),
+				WithBorderColor(t.Accent()),
+				WithPaddingTop(0),
+				WithPaddingBottom(0),
+			)
+
+			resultBody := *result
+			resultBody = truncateHeight(resultBody, 10)
+			resultBlock := renderContentBlock(resultBody, WithFullWidth(), WithMarginBottom(paddingBottom))
+
+			return titleBlock + "\n" + resultBlock
+		}
+
 		return renderContentBlock(style.Render(title),
 			WithAlign(lipgloss.Left),
 			WithBorderColor(t.Accent()),
@@ -568,7 +587,7 @@ func renderToolInvocation(
 		)
 	}
 
-	if body == "" && error == "" && result != nil {
+	if body == "" && error == "" && result != nil && *result != "" {
 		body = *result
 		body = truncateHeight(body, 10)
 		body = renderContentBlock(body, WithFullWidth(), WithMarginBottom(1))
@@ -581,7 +600,32 @@ func renderToolInvocation(
 		content,
 		styles.WhitespaceStyle(t.Background()),
 	)
-	if showDetails && body != "" && error == "" {
+	// Always show results for edit and write tools (contains checkpoint/diagnostic info)
+	alwaysShowResult := toolCall.ToolInvocation.ToolName == "edit" || toolCall.ToolInvocation.ToolName == "write"
+
+	// For edit/write tools, always check if we have a result to display
+	if alwaysShowResult && result != nil && *result != "" {
+		// Extract checkpoint message if present
+		if strings.Contains(*result, "checkpoint") {
+			// Strip checkpoint tags
+			checkpointMsg := *result
+			checkpointMsg = strings.ReplaceAll(checkpointMsg, "<checkpoint>", "")
+			checkpointMsg = strings.ReplaceAll(checkpointMsg, "</checkpoint>", "")
+			checkpointMsg = strings.TrimSpace(checkpointMsg)
+
+			// For better ordering, prepend checkpoint to the content instead of appending to body
+			checkpointBlock := renderContentBlock(checkpointMsg, WithFullWidth(), WithBorderColor(t.Success()))
+
+			// Add checkpoint before the diff/content
+			if body != "" {
+				body = checkpointBlock + "\n" + body
+			} else {
+				body = checkpointBlock
+			}
+		}
+	}
+
+	if (showDetails || alwaysShowResult) && body != "" && error == "" {
 		content += "\n" + body
 	}
 	if showDetails && error != "" {

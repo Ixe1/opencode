@@ -24,12 +24,22 @@ Usage notes:
   - VERY IMPORTANT: You MUST avoid using search commands like `find` and `grep`. Instead use Grep, Glob, or Task to search. You MUST avoid read tools like `cat`, `head`, `tail`, and `ls`, and use Read and LS to read files.
   - If you _still_ need to run `grep`, STOP. ALWAYS USE ripgrep at `rg` (or /usr/bin/rg) first, which all opencode users have pre-installed.
   - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
+  
+  CRITICAL PATH HANDLING:
+  - ALWAYS use absolute paths in bash commands to avoid confusion about the current directory
   - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
+  - If you must use relative paths in a command, first verify your current directory with `pwd`
+  - When the user provides a relative path, convert it to an absolute path before using it
+  - Remember that previous operations may have changed the working directory unexpectedly
     <good-example>
     pytest /foo/bar/tests
+    python /home/user/project/scripts/build.py
+    npm install --prefix /home/user/project
     </good-example>
     <bad-example>
     cd /foo/bar && pytest tests
+    python ./scripts/build.py
+    npm install
     </bad-example>
 
 

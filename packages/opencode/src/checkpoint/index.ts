@@ -384,23 +384,9 @@ export namespace Checkpoint {
       // Copy project files to shadow repo
       await copyProjectToShadow(projectPath, shadowRepoPath, trackedFiles)
       
-      // Check if there are any actual changes to commit
-      const statusProcess = Bun.spawn({
-        cmd: ["git", "status", "--porcelain"],
-        cwd: shadowRepoPath,
-        stdout: "pipe",
-        stderr: "pipe",
-      })
-      await statusProcess.exited
-      const statusOutput = await new Response(statusProcess.stdout).text()
-      
-      if (!statusOutput.trim()) {
-        log.info("skipping checkpoint - no changes to commit", {
-          projectPath,
-          description
-        })
-        return undefined
-      }
+      // Always create a checkpoint when requested, even if git status shows no changes
+      // This is important for newly staged files where the shadow repo might be in sync
+      // We used to check for changes here, but that caused issues with newly staged files
 
       // Stage all files in shadow repo
       const addProcess = Bun.spawn({

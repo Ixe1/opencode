@@ -175,31 +175,27 @@ func (m *messagesComponent) renderView() {
 				isLastToolInvocation := slices.Contains(lastToolIndices, i)
 				metadata := opencode.MessageMetadataTool{}
 
-				toolCallID := part.ToolInvocation.ToolCallID
-				// var toolCallID string
-				// var result *string
-				// switch toolCall := part.ToolInvocation.AsUnion().(type) {
-				// case opencode.ToolCall:
-				// 	toolCallID = toolCall.ToolCallID
-				// case opencode.ToolPartialCall:
-				// 	toolCallID = toolCall.ToolCallID
-				// case opencode.ToolResult:
-				// 	toolCallID = toolCall.ToolCallID
-				// 	result = &toolCall.Result
-				// }
+				var toolCallID string
+				var result *string
+				var isResult bool
+				switch toolCall := part.ToolInvocation.AsUnion().(type) {
+				case opencode.ToolCall:
+					toolCallID = toolCall.ToolCallID
+				case opencode.ToolPartialCall:
+					toolCallID = toolCall.ToolCallID
+				case opencode.ToolResult:
+					toolCallID = toolCall.ToolCallID
+					result = &toolCall.Result
+					isResult = true
+				}
 
 				if _, ok := message.Metadata.Tool[toolCallID]; ok {
 					metadata = message.Metadata.Tool[toolCallID]
 				}
 
-				var result *string
-				if part.ToolInvocation.Result != "" {
-					result = &part.ToolInvocation.Result
-				}
-
-				if part.ToolInvocation.State == "result" {
+				if isResult {
 					key := m.cache.GenerateKey(message.ID,
-						part.ToolInvocation.ToolCallID,
+						toolCallID,
 						m.showToolDetails,
 						layout.Current.Viewport.Width,
 						theme.CurrentThemeName(),
