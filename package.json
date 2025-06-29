@@ -5,6 +5,8 @@
   "type": "module",
   "packageManager": "bun@1.2.14",
   "scripts": {
+    "build": "bun run build:tui && bun run typecheck",
+    "build:tui": "cd packages/tui && go build ./cmd/opencode",
     "typecheck": "bun run --filter='*' typecheck",
     "postinstall": "./scripts/hooks"
   },

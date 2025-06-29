@@ -32,7 +32,8 @@ func NewPlanApprovalDialogCmp(plan string) PlanApprovalDialogCmp {
 	)
 
 	// Set the content immediately with wrapping
-	wrappedContent := wrapContent(plan, 76) // Initial width minus some margin
+	// Account for viewport padding (2 on each side) + margin (4) = 8 total
+	wrappedContent := wrapContent(plan, 72) // Initial width minus padding and margin
 	vp.SetContent(wrappedContent)
 
 	return PlanApprovalDialogCmp{
@@ -136,14 +137,24 @@ func (m PlanApprovalDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		viewportWidth = max(viewportWidth, 40)
 		viewportHeight = max(viewportHeight, 5)
 
-		// Update viewport
-		m.viewport = viewport.New(
-			viewport.WithWidth(viewportWidth),
-			viewport.WithHeight(viewportHeight),
-		)
+		// Update viewport dimensions without losing scroll position
+		oldYOffset := m.viewport.YOffset
+		m.viewport.SetWidth(viewportWidth)
+		m.viewport.SetHeight(viewportHeight)
+
 		// Wrap content to fit viewport width
-		wrappedContent := wrapContent(m.plan, viewportWidth-4) // Leave some margin
+		// Account for viewport padding (2 on each side) + existing margin (4) = 8 total
+		wrappedContent := wrapContent(m.plan, viewportWidth-8) // Account for all padding
 		m.viewport.SetContent(wrappedContent)
+
+		// Restore scroll position if it was valid
+		if oldYOffset > 0 && oldYOffset < m.viewport.TotalLineCount() {
+			m.viewport.SetYOffset(oldYOffset)
+		}
+	default:
+		// Pass other messages to viewport (e.g., mouse events)
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -337,6 +348,11 @@ func (m PlanApprovalDialogCmp) Render(background string) string {
 // Close returns a command to close the dialog.
 func (m PlanApprovalDialogCmp) Close() tea.Cmd {
 	return util.CmdHandler(ClosePlanApprovalDialogMsg{Approved: false, PlanContent: m.plan})
+}
+
+// IsPlanApprovalDialog returns true if this is a plan approval dialog.
+func (m PlanApprovalDialogCmp) IsPlanApprovalDialog() bool {
+	return true
 }
 
 // ClosePlanApprovalDialogMsg is sent when the plan approval dialog is closed.

@@ -347,13 +347,9 @@ export namespace Session {
       .map(p => p.text)
       .join("\n")
     
-    // Must have both start and end markers for a valid plan
-    const hasPlanStart = textContent.includes("## Plan:")
-    const hasPlanEnd = textContent.includes("Would you like me to proceed with this implementation?") ||
-                       textContent.includes("Would you like me to proceed?") ||
-                       textContent.includes("Do you want me to proceed with this plan?")
-    
-    return hasPlanStart && hasPlanEnd
+    // Check for markdown-style plan headers - matches "## *Plan:" where * is any text
+    const planHeaderRegex = /##\s*.*Plan:/im
+    return planHeaderRegex.test(textContent)
   }
 
   function extractPlanContent(msg: Message.Info): string {
@@ -365,30 +361,28 @@ export namespace Session {
       .map(p => p.text)
       .join("\n")
     
-    // Find plan start marker
-    const planStartIndex = textContent.indexOf("## Plan:")
-    if (planStartIndex === -1) return ""
-    
-    // Find plan end markers
-    const endMarkers = [
-      "Would you like me to proceed with this implementation?",
-      "Would you like me to proceed?",
-      "Do you want me to proceed with this plan?"
-    ]
-    
-    let planEndIndex = -1
-    for (const marker of endMarkers) {
-      const index = textContent.indexOf(marker, planStartIndex)
-      if (index !== -1) {
-        planEndIndex = index + marker.length
-        break
+    // Find markdown-style plan - matches "## *Plan:" where * is any text
+    const planHeaderRegex = /##\s*.*Plan:/im
+    const match = textContent.match(planHeaderRegex)
+    if (match) {
+      // Extract from the plan header to the end of the message or next major section
+      const planStartIndex = match.index!
+      
+      // Find where the plan ends (next ## header at start of line or end of content)
+      const remainingContent = textContent.substring(planStartIndex)
+      const nextSectionMatch = remainingContent.match(/\n##\s*(?!.*Plan:)/m)
+      
+      let planEndIndex: number
+      if (nextSectionMatch) {
+        planEndIndex = planStartIndex + nextSectionMatch.index!
+      } else {
+        planEndIndex = textContent.length
       }
+      
+      return textContent.substring(planStartIndex, planEndIndex).trim()
     }
     
-    if (planEndIndex === -1) return ""
-    
-    // Extract plan content between markers
-    return textContent.substring(planStartIndex, planEndIndex).trim()
+    return ""
   }
 
   function detectClarificationQuestion(msg: Message.Info): boolean {

@@ -101,8 +101,14 @@ func (m statusComponent) View() string {
 		contextWindow := m.app.Model.Limit.Context
 
 		for _, message := range m.app.Messages {
-			if message.Metadata.Assistant.Cost > 0 {
-				cost += message.Metadata.Assistant.Cost
+			// Check if Assistant data is populated by checking a required field
+			if message.Metadata.Assistant.ModelID != "" {
+				// Update cost if available
+				if message.Metadata.Assistant.Cost > 0 {
+					cost += message.Metadata.Assistant.Cost
+				}
+
+				// Update tokens independently of cost
 				usage := message.Metadata.Assistant.Tokens
 				if usage.Output > 0 {
 					tokens = (usage.Input +

@@ -41,6 +41,17 @@ const (
 
 const interruptDebounceTimeout = 1 * time.Second
 
+// ShowPlanDialogMsg is sent to show the plan dialog after completion
+type ShowPlanDialogMsg struct {
+	MessageID string
+	Plan      string
+}
+
+// PlanStreamingMsg indicates a plan is being streamed
+type PlanStreamingMsg struct {
+	MessageID string
+}
+
 type appModel struct {
 	width, height        int
 	app                  *app.App
@@ -58,6 +69,9 @@ type appModel struct {
 	toastManager         *toast.ToastManager
 	interruptKeyState    InterruptKeyState
 	lastScroll           time.Time
+	// Track plan messages
+	planMessageID string
+	planDetected  bool
 }
 
 func (a appModel) Init() tea.Cmd {
@@ -404,9 +418,27 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// Check if the content looks like a plan
 				if planContent.Len() > 0 && detectPlanInMessage(planContent.String()) {
-					// Show plan approval dialog
-					planDialog := dialog.NewPlanApprovalDialogCmp(planContent.String())
-					a.modal = &planDialog
+					// Track this plan message
+					if a.planMessageID != msg.Properties.Info.ID {
+						a.planMessageID = msg.Properties.Info.ID
+						a.planDetected = true
+						// Show a toast to indicate plan is being formulated
+						cmds = append(cmds, toast.NewInfoToast("📋 Formulating plan..."))
+					}
+
+					// Check if message is complete (Completed field is non-zero)
+					if msg.Properties.Info.Metadata.Time.Completed > 0 && a.planDetected {
+						// Message is complete, show dialog after a brief delay to ensure UI updates
+						a.planDetected = false
+						// Extract only the plan portion to show in the dialog
+						extractedPlan := extractPlanContent(planContent.String())
+						cmds = append(cmds, tea.Tick(300*time.Millisecond, func(t time.Time) tea.Msg {
+							return ShowPlanDialogMsg{
+								MessageID: msg.Properties.Info.ID,
+								Plan:      extractedPlan,
+							}
+						}))
+					}
 				}
 			}
 		}
@@ -461,6 +493,14 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Reset interrupt key state after timeout
 		a.interruptKeyState = InterruptKeyIdle
 		a.editor.SetInterruptKeyInDebounce(false)
+	case ShowPlanDialogMsg:
+		// Show the plan dialog for the completed message
+		if msg.MessageID == a.planMessageID {
+			planDialog := dialog.NewPlanApprovalDialogCmp(msg.Plan)
+			a.modal = &planDialog
+			// Clear tracking
+			a.planMessageID = ""
+		}
 	}
 
 	// update status bar

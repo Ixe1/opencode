@@ -75,6 +75,7 @@ func main() {
 		tui.NewModel(app_),
 		tea.WithAltScreen(),
 		tea.WithKeyboardEnhancements(),
+		tea.WithMouseCellMotion(),
 	)
 
 	evts, err := client.Event(httpClient, url, ctx)
