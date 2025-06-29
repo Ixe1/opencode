@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { PathValidation } from "../../packages/opencode/src/util/path-validation"
+import { PathValidation } from "../../src/util/path-validation"
 
 describe("PathValidation", () => {
   describe("isRelativePath", () => {

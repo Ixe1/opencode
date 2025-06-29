@@ -2,6 +2,8 @@ import { z } from "zod"
 import { Tool } from "./tool"
 import { App } from "../app/app"
 import { Ripgrep } from "../external/ripgrep"
+import { PathValidation } from "../util/path-validation"
+import * as path from "path"
 
 import DESCRIPTION from "./grep.txt"
 
@@ -30,8 +32,13 @@ export const GrepTool = Tool.define({
       throw new Error("pattern is required")
     }
 
+    // Check for relative paths and throw error
+    if (params.path && PathValidation.isRelativePath(params.path)) {
+      throw new Error(PathValidation.getRelativePathError(params.path))
+    }
+
     const app = App.info()
-    const searchPath = params.path || app.path.cwd
+    const searchPath = params.path ? path.resolve(params.path) : app.path.cwd
 
     const rgPath = await Ripgrep.filepath()
     const args = ["-n", params.pattern]

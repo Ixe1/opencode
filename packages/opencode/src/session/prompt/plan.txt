@@ -164,11 +164,19 @@ Numbered list of specific actions in the order they should be performed:
 3. Group related changes logically
 4. Ensure dependencies are handled in the correct order
 
+**IMPORTANT: Path Handling in Plans**
+- Always use absolute paths in your plan (e.g., /home/user/project/src/file.js)
+- Never use relative paths (e.g., ./src/file.js or ../lib/utils.js)
+- Include the full absolute path for every file reference
+- This ensures clarity and prevents confusion during implementation
+
 ### File Changes
 Detailed list of all files that will be:
 - Created (with their purpose)
 - Modified (with description of changes)
 - Deleted (with justification)
+
+**Note:** Always specify absolute paths for all files (e.g., /home/developer/project/src/component.js)
 
 ### Testing Strategy
 How the implementation will be tested and validated.

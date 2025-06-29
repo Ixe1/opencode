@@ -2,7 +2,9 @@ import { z } from "zod"
 import { Tool } from "./tool"
 import { App } from "../app/app"
 import * as path from "path"
+import * as fs from "fs"
 import DESCRIPTION from "./ls.txt"
+import { PathValidation } from "../util/path-validation"
 
 export const IGNORE_PATTERNS = [
   "node_modules/",
@@ -36,8 +38,25 @@ export const ListTool = Tool.define({
       .optional(),
   }),
   async execute(params) {
+    // Check for relative paths and throw error
+    if (params.path && PathValidation.isRelativePath(params.path)) {
+      throw new Error(PathValidation.getRelativePathError(params.path))
+    }
+
     const app = App.info()
-    const searchPath = path.resolve(app.path.cwd, params.path || ".")
+    const searchPath = params.path || app.path.cwd
+    
+    // Check if directory exists
+    if (!fs.existsSync(searchPath)) {
+      const errorMsg = await PathValidation.getPathNotFoundError(searchPath)
+      throw new Error(errorMsg)
+    }
+    
+    // Check if it's a directory
+    const stats = fs.statSync(searchPath)
+    if (!stats.isDirectory()) {
+      throw new Error(`Error: ${searchPath} is not a directory`)
+    }
 
     const glob = new Bun.Glob("**/*")
     const files = []

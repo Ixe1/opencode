@@ -1,2 +1,0 @@
-This is a test file to debug checkpoint issues. (Second edit)
-We'll edit this file to see if the first edit shows a checkpoint.

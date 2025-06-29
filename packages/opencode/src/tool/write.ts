@@ -12,6 +12,7 @@ import { File } from "../file"
 import { FileTime } from "../file/time"
 import { Session } from "../session"
 import { Log } from "../util/log"
+import { PathValidation } from "../util/path-validation"
 
 export const WriteTool = Tool.define({
   id: "write",
@@ -33,10 +34,13 @@ export const WriteTool = Tool.define({
       )
     }
 
+    // Check for relative paths and throw error
+    if (PathValidation.isRelativePath(params.filePath)) {
+      throw new Error(PathValidation.getRelativePathError(params.filePath))
+    }
+
     const app = App.info()
-    const filepath = path.isAbsolute(params.filePath)
-      ? params.filePath
-      : path.join(app.path.cwd, params.filePath)
+    const filepath = params.filePath
 
     const file = Bun.file(filepath)
     const exists = await file.exists()

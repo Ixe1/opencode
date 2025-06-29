@@ -17,6 +17,7 @@ import { Bus } from "../bus"
 import { FileTime } from "../file/time"
 import { Session } from "../session"
 import { Log } from "../util/log"
+import { PathValidation } from "../util/path-validation"
 
 export const EditTool = Tool.define({
   id: "edit",
@@ -47,18 +48,17 @@ export const EditTool = Tool.define({
       throw new Error("filePath is required")
     }
 
+    // Check for relative paths and throw error
+    if (PathValidation.isRelativePath(params.filePath)) {
+      throw new Error(PathValidation.getRelativePathError(params.filePath))
+    }
+
     if (params.oldString === params.newString) {
       throw new Error("old_string and new_string must be different")
     }
 
-    if (params.oldString === params.newString) {
-      throw new Error("oldString and newString must be different")
-    }
-
     const app = App.info()
-    const filepath = path.isAbsolute(params.filePath)
-      ? params.filePath
-      : path.join(app.path.cwd, params.filePath)
+    const filepath = params.filePath
 
     await Permission.ask({
       id: "edit",
@@ -136,7 +136,11 @@ export const EditTool = Tool.define({
 
       const file = Bun.file(filepath)
       const stats = await file.stat().catch(() => {})
-      if (!stats) throw new Error(`File ${filepath} not found`)
+      if (!stats) {
+        // Use the path validation utility for better error messages
+        const errorMsg = await PathValidation.getPathNotFoundError(filepath)
+        throw new Error(errorMsg)
+      }
       if (stats.isDirectory())
         throw new Error(`Path is a directory, not a file: ${filepath}`)
       await FileTime.assert(ctx.sessionID, filepath)

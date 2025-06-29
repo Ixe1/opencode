@@ -1,6 +1,5 @@
 import * as path from "path"
 import * as fs from "fs"
-import { glob } from "glob"
 
 export namespace PathValidation {
   /**
@@ -71,28 +70,31 @@ Remember:
         }
       }
 
-      // Also try glob patterns for common variations
-      const baseWithoutExt = path.basename(basename, path.extname(basename))
-      const ext = path.extname(basename)
-      
-      const patterns = [
-        path.join(dir, `*${baseWithoutExt}*${ext}`),
-        path.join(dir, `${baseWithoutExt}*`),
-        path.join(path.dirname(dir), `**/${basename}`),
+      // Also check parent directory for the file
+      const parentDir = path.dirname(dir)
+      if (fs.existsSync(parentDir)) {
+        const checkPath = path.join(parentDir, basename)
+        if (fs.existsSync(checkPath)) {
+          suggestions.push({ path: checkPath, score: 0.8 })
+        }
+      }
+
+      // Check common directory name variations
+      const dirVariations = [
+        dir.replace(/src$/, 'lib'),
+        dir.replace(/lib$/, 'src'),
+        dir.replace(/test$/, 'src'),
+        dir.replace(/tests$/, 'src'),
+        dir.replace(/src$/, 'test'),
+        dir.replace(/src$/, 'tests'),
       ]
 
-      for (const pattern of patterns) {
-        try {
-          const matches = await glob(pattern, { 
-            ignore: ['**/node_modules/**', '**/.git/**'],
-            maxDepth: 3 
-          })
-          for (const match of matches) {
-            const similarity = calculateSimilarity(targetPath, match)
-            suggestions.push({ path: match, score: similarity })
+      for (const varDir of dirVariations) {
+        if (varDir !== dir && fs.existsSync(varDir)) {
+          const varPath = path.join(varDir, basename)
+          if (fs.existsSync(varPath)) {
+            suggestions.push({ path: varPath, score: 0.7 })
           }
-        } catch (e) {
-          // Ignore glob errors
         }
       }
 
