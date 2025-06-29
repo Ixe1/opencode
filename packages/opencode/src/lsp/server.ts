@@ -92,5 +92,115 @@ export namespace LSPServer {
         }
       },
     },
+    {
+      id: "java",
+      extensions: [".java"],
+      async spawn() {
+        let bin = Bun.which("jdtls", {
+          PATH: process.env["PATH"] + ":" + Global.Path.bin,
+        })
+        if (!bin) {
+          log.info("jdtls not found - please install Eclipse JDT Language Server")
+          return
+        }
+        return {
+          process: spawn(bin),
+        }
+      },
+    },
+    {
+      id: "python",
+      extensions: [".py", ".pyi", ".pyx"],
+      async spawn() {
+        let bin = Bun.which("pyright-langserver", {
+          PATH: process.env["PATH"] + ":" + Global.Path.bin,
+        })
+        if (!bin) {
+          bin = Bun.which("pylsp", {
+            PATH: process.env["PATH"] + ":" + Global.Path.bin,
+          })
+        }
+        if (!bin) {
+          log.info("installing pyright")
+          const proc = Bun.spawn({
+            cmd: ["npm", "install", "-g", "pyright"],
+            env: { ...process.env, PREFIX: Global.Path.bin.replace("/bin", "") },
+            stdout: "pipe",
+            stderr: "pipe",
+            stdin: "pipe",
+          })
+          const exit = await proc.exited
+          if (exit !== 0) {
+            log.error("Failed to install pyright")
+            return
+          }
+          bin = path.join(
+            Global.Path.bin,
+            "pyright-langserver" + (process.platform === "win32" ? ".cmd" : ""),
+          )
+          log.info(`installed pyright`, {
+            bin,
+          })
+        }
+        return {
+          process: spawn(bin!, ["--stdio"]),
+        }
+      },
+    },
+    {
+      id: "php",
+      extensions: [".php", ".phtml", ".php3", ".php4", ".php5", ".phps"],
+      async spawn() {
+        let bin = Bun.which("intelephense", {
+          PATH: process.env["PATH"] + ":" + Global.Path.bin,
+        })
+        if (!bin) {
+          log.info("installing intelephense")
+          const proc = Bun.spawn({
+            cmd: ["npm", "install", "-g", "intelephense"],
+            env: { ...process.env, PREFIX: Global.Path.bin.replace("/bin", "") },
+            stdout: "pipe",
+            stderr: "pipe",
+            stdin: "pipe",
+          })
+          const exit = await proc.exited
+          if (exit !== 0) {
+            log.error("Failed to install intelephense")
+            return
+          }
+          bin = path.join(
+            Global.Path.bin,
+            "intelephense" + (process.platform === "win32" ? ".cmd" : ""),
+          )
+          log.info(`installed intelephense`, {
+            bin,
+          })
+        }
+        return {
+          process: spawn(bin!, ["--stdio"]),
+        }
+      },
+    },
+    {
+      id: "csharp",
+      extensions: [".cs", ".csx"],
+      async spawn() {
+        let bin = Bun.which("omnisharp", {
+          PATH: process.env["PATH"] + ":" + Global.Path.bin,
+        })
+        if (!bin) {
+          bin = Bun.which("OmniSharp", {
+            PATH: process.env["PATH"] + ":" + Global.Path.bin,
+          })
+        }
+        if (!bin) {
+          log.info("OmniSharp not found - please install OmniSharp language server")
+          return
+        }
+        return {
+          process: spawn(bin, ["-lsp"]),
+        }
+      },
+    },
   ]
 }
